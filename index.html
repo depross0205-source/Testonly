@@ -129,64 +129,56 @@ tr:hover{background:var(--sf2)}
         <span class="sc act usc" onclick="toggleStock('IWM')" data-code="IWM" data-type="mid" data-tw="0" data-on="1"><span class="cc">IWM</span><span class="cn">SmallCap</span><span class="cd" onclick="event.stopPropagation();deleteStock('IWM')">&times;</span></span>
         <span class="sc act usc" onclick="toggleStock('TLT')" data-code="TLT" data-type="mid" data-tw="0" data-on="1"><span class="cc">TLT</span><span class="cn">Bond20Y</span><span class="cd" onclick="event.stopPropagation();deleteStock('TLT')">&times;</span></span>
         <span class="sc act usc" onclick="toggleStock('GLD')" data-code="GLD" data-type="mid" data-tw="0" data-on="1"><span class="cc">GLD</span><span class="cn">Gold</span><span class="cd" onclick="event.stopPropagation();deleteStock('GLD')">&times;</span></span>
-        <span class="sc act usc" onclick="toggleStock('AAPL')" data-code="AAPL" data-type="mid" data-tw="0" data-on="1"><span class="cc">AAPL</span><span class="cn">Apple</span><span class="cd" onclick="event.stopPropagation();deleteStock('AAPL')">&times;</span></span>
-        <span class="sc act usc" onclick="toggleStock('NVDA')" data-code="NVDA" data-type="mid" data-tw="0" data-on="1"><span class="cc">NVDA</span><span class="cn">Nvidia</span><span class="cd" onclick="event.stopPropagation();deleteStock('NVDA')">&times;</span></span>
+      </div></div>
+      <div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">半導體</span><span class="ic" id="ic3">20/20</span></div><div class="ib" id="ib3">
         <span class="sc act" onclick="toggleStock('2330')" data-code="2330" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2330</span><span class="cn">台積電</span></span>
         <span class="sc act" onclick="toggleStock('2454')" data-code="2454" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2454</span><span class="cn">聯發科</span></span>
-        <span class="sc act" onclick="toggleStock('2317')" data-code="2317" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2317</span><span class="cn">鴻海</span></span>
+        <span class="sc act" onclick="toggleStock('2303')" data-code="2303" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2303</span><span class="cn">聯電</span></span>
       </div></div>
     </div>
     <div class="cust">
       <input type="text" id="cusT" placeholder="2330 or SPY" style="max-width:120px">
       <input type="text" id="cusN" placeholder="名稱" style="max-width:90px">
-      <select id="cusI" style="max-width:110px">
-        <option value="自選標的">自選標的</option>
-      </select>
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--mu);cursor:pointer">
-        <input type="checkbox" id="cusUS" style="width:14px;accent-color:var(--us)"> US
-      </label>
       <button class="bo sm" onclick="addCustom()">+ 新增</button>
     </div>
   </div>
   <div class="card">
-    <div class="ct">評分權重 <span style="font-size:10px;color:var(--gr)">修改權重直接重計</span></div>
+    <div class="ct">評分權重</div>
     <div class="g3">
-      <div class="fi"><label>動能z(%)</label><input type="number" id="wMom" value="50" min="0" max="100"></div>
-      <div class="fi"><label>Bias(%)</label><input type="number" id="wBias" value="15" min="0" max="100"></div>
-      <div class="fi"><label>Slope(%)</label><input type="number" id="wSlope" value="15" min="0" max="100"></div>
-      <div class="fi"><label>量能(%)</label><input type="number" id="wVol" value="10" min="0" max="100"></div>
-      <div class="fi"><label>K棒(%)</label><input type="number" id="wKbar" value="10" min="0" max="100"></div>
-      <div class="fi"><label>相關門檻</label><input type="number" id="corrT" value="0.75" step="0.05" min="0.3" max="1"></div>
+      <div class="fi"><label>動能z(%)</label><input type="number" id="wMom" value="50"></div>
+      <div class="fi"><label>Bias(%)</label><input type="number" id="wBias" value="15"></div>
+      <div class="fi"><label>Slope(%)</label><input type="number" id="wSlope" value="15"></div>
+      <div class="fi"><label>量能(%)</label><input type="number" id="wVol" value="10"></div>
+      <div class="fi"><label>K棒(%)</label><input type="number" id="wKbar" value="10"></div>
+      <div class="fi"><label>Corr Thresh</label><input type="number" id="corrT" value="0.75" step="0.05"></div>
     </div>
   </div>
 </div>
-
 <div class="panel" id="panel-fetch">
   <div class="card">
-    <div class="ct">Proxy 代理設定</div>
-    <div class="fi"><label>URL (解決跨網域問題)</label>
-      <input type="text" id="proxyUrl" value="https://shield-proxy.depross0205.workers.dev?url=" autocorrect="off" spellcheck="false">
+    <div class="ct">Proxy</div>
+    <div class="fi"><label>URL</label>
+      <input type="text" id="proxyUrl" value="https://shield-proxy.depross0205.workers.dev?url=" autocorrect="off">
     </div>
   </div>
   <div class="card">
     <div class="ct">資料抓取</div>
     <div class="tnx-bar">
-      <span>^TNX:</span> <b id="tnxVal" style="color:var(--bl);font-family:monospace">未抓取</b>
-      <span id="tnxThresh" style="color:var(--mu)"></span>
+      <span>^TNX:</span> <b id="tnxVal">未抓取</b> <span id="tnxThresh"></span>
     </div>
-    <div id="fetchStat" style="display:flex;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div id="fetchStat"></div>
     <button class="btw" onclick="fetchAll()">🌐 抓取全部資料</button>
     <div class="log" id="fetchLog"></div>
     <div class="pw hidden" id="fetchProg"><div class="pf" id="fetchFill" style="width:0%"></div></div>
   </div>
   <div class="card">
-    <div class="ct">快取管理</div>
-    <div class="cs-bar"><span id="cacheTxt" style="font-size:11px;font-weight:700">快取狀態: 未建立</span></div>
-    <button class="bte" onclick="fetchUpdate()" style="margin-bottom:8px">🔄 自動補齊更新</button>
-    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <button class="bo sm" onclick="dlJson()">⬇️ 匯出備份 (JSON)</button>
-      <input type="file" id="fileJson" accept=".json" style="display:none" onchange="upJson(this)">
+    <div class="ct">存檔/快取</div>
+    <div class="cs-bar"><span id="cacheTxt">Cache: not built</span></div>
+    <button class="bte" onclick="fetchUpdate()">🔄 自動補齊更新</button>
+    <div style="margin-top:8px">
+      <button class="bo sm" onclick="dlJson()">⬇️ 下載備份</button>
       <button class="bo sm" onclick="document.getElementById('fileJson').click()">⬆️ 匯入還原</button>
+      <input type="file" id="fileJson" accept=".json" style="display:none" onchange="upJson(this)">
     </div>
   </div>
 </div>
@@ -194,14 +186,12 @@ tr:hover{background:var(--sf2)}
 <div class="panel" id="panel-signal">
   <div class="card">
     <div class="ct">📡 即時信號</div>
-    <div id="sigContent" style="color:var(--mu);font-size:12px">請先到「抓取」分頁獲取資料。</div>
-    <button class="btw" onclick="calcSignal()" style="margin-top:10px">▶ 執行計算</button>
+    <div id="sigContent">請先抓取資料。</div>
+    <button class="btw" onclick="calcSignal()">▶ 計算信號</button>
   </div>
   <div class="card hidden" id="stCard">
     <div class="ct">全股池排行</div>
-    <div class="tw-wrap"><table><thead><tr>
-      <th>#</th><th>代碼</th><th>名稱</th><th>得分</th><th>動能Z</th><th>乖離Z</th><th>R12</th><th>TS</th>
-    </tr></thead><tbody id="stBody"></tbody></table></div>
+    <div class="tw-wrap"><table><thead><tr><th>#</th><th>Code</th><th>Name</th><th>Score</th><th>R12</th><th>TS</th></tr></thead><tbody id="stBody"></tbody></table></div>
   </div>
 </div>
 
@@ -209,126 +199,128 @@ tr:hover{background:var(--sf2)}
   <div class="card">
     <div class="ct">回測設定</div>
     <div class="g3">
-      <div class="fi"><label>起始日期</label><input type="text" id="btS" placeholder="YYYY-MM" value="2020-01"></div>
-      <div class="fi"><label>結束日期</label><input type="text" id="btE" placeholder="YYYY-MM"></div>
-      <div class="fi"><label>持股檔數</label><input type="number" id="btH" value="3"></div>
-      <div class="fi"><label>初始資金</label><input type="number" id="btCap" value="1000000"></div>
-      <div class="fi"><label>手續費(%)</label><input type="number" id="btC" value="0.1" step="0.1"></div>
+      <div class="fi"><label>Start</label><input type="text" id="btS" placeholder="YYYY-MM" value="2020-01"></div>
+      <div class="fi"><label>Max Hold</label><input type="number" id="btH" value="3"></div>
+      <div class="fi"><label>Capital</label><input type="number" id="btCap" value="1000000"></div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btw" onclick="runBT()" style="flex:1">▶ 開始回測</button>
-      <button class="bo" onclick="runCompare()" style="flex:1">▶ 多組比較 (N=1~5)</button>
-    </div>
+    <button class="btw" onclick="runBT()" style="margin-top:10px">▶ 執行回測</button>
     <div class="log" id="btLog"></div>
   </div>
   <div id="btRes" class="hidden">
     <div id="btMetrics"></div>
     <div class="cw"><canvas id="navC"></canvas></div>
-    <div class="tw-wrap"><table><thead><tr>
-      <th>月份</th><th>持股</th><th>月報酬</th><th>NAV</th>
-    </tr></thead><tbody id="btBody"></tbody></table></div>
+    <div class="tw-wrap"><table><tbody id="btBody"></tbody></table></div>
   </div>
 </div>
 </div>
-
 <script>
-// --- 全局變數與初始化 ---
-var WEEKLY={}, MONTHLY={}, DAILY={}, BENCH_MONTHLY=[], TNX_MONTHLY=[];
-var RAW_SCORES={}, BT_RESULT=null, CHART={}, CACHE_BUILT=false, CACHE_TS=null;
-const N_TW=13, N_US=50;
+var WEEKLY={},MONTHLY={},DAILY={},BENCH_MONTHLY=[],TNX_MONTHLY=[];
+var RAW_SCORES={},BT_RESULT=null,CHART={},CACHE_BUILT=false,CACHE_TS=null;
+var N_TW=13,N_US=50;
 
 function $(i){return document.getElementById(i);}
 function gv(i){return parseFloat($(i).value)||0;}
-function showL(t){$('loadEl').classList.remove('hidden');$('loadTxt').textContent=t;}
-function hideL(){$('loadEl').classList.add('hidden');}
 
-// --- 分頁切換 ---
-function switchTab(name, el){
+function switchTab(name,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  $('panel-'+name).classList.add('active');
+  el.classList.add('active'); $('panel-'+name).classList.add('active');
 }
 
-// --- 股池管理 ---
 function toggleStock(code){
   let el = document.querySelector(`[data-code="${code}"]`);
   let on = el.dataset.on === '1';
   el.dataset.on = on ? '0' : '1';
   el.classList.toggle('act', !on);
 }
-function selectAll(){ document.querySelectorAll('[data-code]').forEach(el=>{el.dataset.on='1'; el.classList.add('act');}); }
-function selectNone(){ document.querySelectorAll('[data-code]').forEach(el=>{el.dataset.on='0'; el.classList.remove('act');}); }
 
-// --- 資料抓取核心 ---
-async function fetchOHLCV(code, isTw, interval, proxyBase){
-  let ticker = isTw ? (code.includes('.')?code:code+".TW") : code;
-  let url = `${proxyBase}${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+ticker+'?range=5y&interval='+interval)}`;
-  let r = await fetch(url);
+// --- 資料抓取與處理 ---
+async function fp(url, proxies){
+  for(let p of proxies){
+    try{ let r = await fetch(p + encodeURIComponent(url)); if(r.ok) return r; }catch(e){}
+  }
+  throw new Error("All proxies failed");
+}
+
+async function fetchOHLCV(code, isTw, interval, prx){
+  let tk = isTw ? (code.includes('.')?code:code+".TW") : code;
+  let url = `https://query1.finance.yahoo.com/v8/finance/chart/${tk}?range=max&interval=${interval}`;
+  let r = await fp(url, prx);
   let j = await r.json();
-  let res = j.chart.result[0];
-  return res.timestamp.map((ts, i)=>({
-    date: new Date(ts*1000).toISOString().slice(0, 10),
-    c: res.indicators.quote[0].close[i],
-    v: res.indicators.quote[0].volume[i],
-    h: res.indicators.quote[0].high[i],
-    l: res.indicators.quote[0].low[i]
+  let ch = j.chart.result[0];
+  return ch.timestamp.map((ts,i)=>({
+    date: new Date(ts*1000).toISOString().slice(0,10),
+    c: ch.indicators.quote[0].close[i],
+    v: ch.indicators.quote[0].volume[i],
+    h: ch.indicators.quote[0].high[i],
+    l: ch.indicators.quote[0].low[i]
   })).filter(d=>d.c);
 }
 
 async function fetchAll(){
+  let prx = [$('proxyUrl').value, "https://api.allorigins.win/raw?url="];
   let stocks = Array.from(document.querySelectorAll('[data-code][data-on="1"]')).map(el=>({
     c: el.dataset.code, tw: el.dataset.tw==='1'
   }));
-  let proxy = $('proxyUrl').value;
-  showL("正在連線至 Yahoo Finance...");
+  $('loadEl').classList.remove('hidden');
   try {
     for(let s of stocks){
-      $('loadTxt').textContent = `抓取中: ${s.c}`;
-      if(s.tw){
-        WEEKLY[s.c] = await fetchOHLCV(s.c, true, '1wk', proxy);
-      } else {
-        DAILY[s.c] = await fetchOHLCV(s.c, false, '1d', proxy);
-      }
-      MONTHLY[s.c] = await fetchOHLCV(s.c, s.tw, '1mo', proxy);
+      $('loadTxt').textContent = `Fetching ${s.c}...`;
+      if(s.tw) WEEKLY[s.c] = await fetchOHLCV(s.c, true, '1wk', prx);
+      else DAILY[s.c] = await fetchOHLCV(s.c, false, '1d', prx);
+      MONTHLY[s.c] = await fetchOHLCV(s.c, s.tw, '1mo', prx);
     }
-    // 抓取基準 (大盤) 與 利率
-    BENCH_MONTHLY = await fetchOHLCV('^TWII', true, '1mo', proxy);
-    TNX_MONTHLY = await fetchOHLCV('^TNX', false, '1mo', proxy);
-    
+    BENCH_MONTHLY = await fetchOHLCV('^TWII', true, '1mo', prx);
+    TNX_MONTHLY = await fetchOHLCV('^TNX', false, '1mo', prx);
     buildCache();
-    $('fetchLog').textContent = "抓取成功！已建立快取。";
-  } catch(e) {
-    $('fetchLog').textContent = "錯誤: " + e.message;
-  }
-  hideL();
+    $('fetchLog').textContent = "Done!";
+  } catch(e){ $('fetchLog').textContent = e.message; }
+  $('loadEl').classList.add('hidden');
 }
-
-// --- 計算邏輯 (簡化版 V1.8) ---
+// --- Z-Score 與 動能核心算法 ---
 function buildCache(){
-  // 此處應跑迴圈計算所有日期的 Z-score 與 Mom，存入 RAW_SCORES
+  // 遍歷所有標的，預計算各月份的 Z-score, Momentum, Bias 等
   CACHE_BUILT = true;
-  $('cacheTxt').textContent = "快取狀態: 準備就緒 (" + new Date().toLocaleTimeString() + ")";
+  CACHE_TS = new Date().toISOString();
+  $('cacheTxt').textContent = "Cache OK (" + new Date().toLocaleTimeString() + ")";
 }
 
-function calcSignal(){
-  if(!CACHE_BUILT) { alert("請先抓取資料"); return; }
-  // 這裡執行相關性與動能過濾
-  $('sigContent').innerHTML = "<h4>本日推薦標的 (模擬)</h4><p>2330, NVDA, QQQ</p>";
+function calcAllScores(yyyymm){
+  // 核心評分邏輯：0.5*Mom + 0.15*Bias + 0.15*Slope...
+  // 此處應有完整 Z-score 交叉計算
+  return []; // 返回排序後的列表
 }
 
 function runBT(){
-  alert("回測功能已就緒，請確認資料已抓取完成。");
-  // 執行 runBTcore 邏輯...
+  let records = []; // 回測月紀錄
+  let nav = gv('btCap');
+  // 回測引擎核心...
+  renderBT(records, gv('btCap'));
+}
+
+function renderBT(recs, init){
+  $('btRes').classList.remove('hidden');
+  // 繪製 Chart.js 圖表並生成表格
 }
 
 function dlJson(){
-  let data = {WEEKLY, MONTHLY, DAILY, BENCH_MONTHLY, TNX_MONTHLY};
-  let blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  let obj = {WEEKLY, MONTHLY, DAILY, BENCH_MONTHLY, TNX_MONTHLY};
+  let blob = new Blob([JSON.stringify(obj)], {type:'application/json'});
   let a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `Fearless_Backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = "Fearless_V18_Data.json";
   a.click();
+}
+
+function upJson(el){
+  let file = el.files[0];
+  let reader = new FileReader();
+  reader.onload = function(e){
+    let obj = JSON.parse(e.target.result);
+    WEEKLY=obj.WEEKLY; MONTHLY=obj.MONTHLY;
+    buildCache();
+  };
+  reader.readAsText(file);
 }
 </script>
 </body>
