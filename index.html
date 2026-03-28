@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>&#x53F0;&#x80A1;&#x52D5;&#x80FD;&#x9078;&#x80A1; V1.8</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0c10;--sf:#12161f;--sf2:#1a2030;--bd:#252d3d;--bhi:#3a4560;
+  --tx:#e2eaf8;--mu:#6b7a99;--gr:#00e5a0;--re:#ff4d6d;--red:#3d0012;
+  --ye:#ffb830;--bl:#4d9fff;--bld:#001a3d;--ac:#7eb8ff;
+  --tw:#ff6b9d;--twd:#3d0020;--te:#00d4aa;--ted:#003328;--wh:#f8faff;
+  --us:#a78bfa;--usd:#1a0040;
+}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;padding:16px;font-size:14px;line-height:1.6}
+.mono{font-family:'IBM Plex Mono',monospace}
+.wrap{max-width:1200px;margin:0 auto}
+h1{font-size:18px;font-weight:700;color:var(--wh);display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.tag{font-size:11px;padding:2px 8px;border-radius:3px;background:var(--tw);color:#000;font-weight:700}
+.sub{font-size:11px;color:var(--mu);margin-bottom:14px;line-height:1.8}
+.tabs{display:flex;border-bottom:2px solid var(--bd);margin-bottom:14px;overflow-x:auto;white-space:nowrap}
+.tab{padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--mu);border:none;border-bottom:3px solid transparent;margin-bottom:-2px;background:none;font-family:inherit;transition:.15s}
+.tab.active{color:var(--tw);border-bottom-color:var(--tw)}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--sf);border:1px solid var(--bd);padding:13px;margin-bottom:10px}
+.ct{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.fi{display:flex;flex-direction:column;gap:3px}
+.fi label{font-size:10px;color:var(--mu);font-weight:700;text-transform:uppercase}
+input[type=text],input[type=number],select{background:var(--bg);border:1px solid var(--bhi);color:var(--wh);padding:7px 9px;border-radius:3px;font-size:13px;font-family:'IBM Plex Mono',monospace;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--tw)}
+button{padding:9px 14px;border:none;border-radius:3px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;transition:.15s}
+.btw{background:var(--tw);color:#000;width:100%}.btw:hover{opacity:.85}
+.bo{background:transparent;border:1px solid var(--bhi);color:var(--mu)}.bo:hover{color:var(--tx);border-color:var(--tx)}
+.bte{background:transparent;border:1px solid var(--te);color:var(--te);width:100%}.bte:hover{opacity:.85}
+.sm{padding:5px 11px;font-size:11px;width:auto}
+.log{font-size:11px;color:var(--mu);font-family:'IBM Plex Mono',monospace;margin-top:7px;min-height:14px;word-break:break-all;white-space:pre-wrap}
+.pw{background:var(--bd);border-radius:2px;height:4px;margin-top:6px;overflow:hidden}
+.pf{height:100%;background:var(--tw);border-radius:2px;transition:width .3s}
+.ig{border:1px solid var(--bd);margin-bottom:5px;border-radius:3px;overflow:hidden}
+.ih{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;cursor:pointer;background:var(--sf2);user-select:none;gap:8px}
+.ih:hover{background:var(--bhi)}
+.in{font-size:12px;font-weight:700;color:var(--ac);flex:1}
+.ic{font-size:10px;color:var(--mu);white-space:nowrap}
+.ib{padding:7px;display:flex;flex-wrap:wrap;gap:4px}
+.ib.col{display:none}
+.sc{display:inline-flex;align-items:center;padding:4px 8px;border-radius:3px;font-size:11px;font-family:'IBM Plex Mono',monospace;border:1px solid var(--bd);background:var(--bg);cursor:pointer;gap:4px;user-select:none;transition:.12s}
+.sc:hover{border-color:var(--tw);background:var(--twd)}
+.sc.act{background:var(--twd);border-color:var(--tw);color:var(--tw)}
+.sc.usc:hover{border-color:var(--us);background:var(--usd)}
+.sc.usc.act{background:var(--usd);border-color:var(--us);color:var(--us)}
+.cc{font-weight:700}.cn{font-size:9px;color:var(--mu)}
+.sc.act .cn{color:var(--tw);opacity:.7}.sc.usc.act .cn{color:var(--us);opacity:.7}
+.cd{font-size:12px;color:var(--re);opacity:0;padding:0 2px;line-height:1}
+.sc:hover .cd{opacity:1}
+.cust{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center}
+.cust input,.cust select{flex:1;min-width:75px}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:8px;margin-bottom:10px}
+.scard{background:var(--sf);border:1px solid var(--bd);padding:11px;border-radius:3px}
+.shdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.scode{font-size:15px;font-weight:700;font-family:'IBM Plex Mono',monospace}
+.sname{font-size:10px;color:var(--mu)}
+.sscore{font-size:21px;font-weight:700;font-family:'IBM Plex Mono',monospace}
+.srank{font-size:11px;font-weight:700;padding:2px 8px;border-radius:3px}
+.sbars{margin-top:7px}
+.sbrow{display:flex;align-items:center;gap:5px;margin-bottom:3px;font-size:10px;color:var(--mu)}
+.sbwrap{flex:1;height:3px;background:var(--bd);border-radius:2px;overflow:hidden}
+.sbfill{height:100%;border-radius:2px}
+.wk .scode{color:var(--re)}.wk .srank{background:var(--red);color:var(--re);border-color:var(--re)}
+.mr{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--bd)}
+.mr:last-child{border:none}.mv{font-family:'IBM Plex Mono',monospace;font-weight:700}
+.tg{color:var(--gr)}.tr{color:var(--re)}.wh{color:var(--wh)}
+.tw-wrap{overflow-x:auto;background:var(--sf);border:1px solid var(--bd);margin-bottom:10px;max-height:480px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:7px 8px;color:var(--mu);text-align:left;background:var(--sf2);position:sticky;top:0;z-index:2;font-size:10px;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+tr:hover{background:var(--sf2)}
+.cw{background:var(--sf);border:1px solid var(--bd);padding:13px;margin-bottom:10px}
+.ct2{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mu);margin-bottom:9px}
+.load{position:fixed;inset:0;background:rgba(10,12,16,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:12px}
+.spin{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--tw);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hidden{display:none}
+.bdg{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:700;margin:2px}
+.shbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--twd);border:1px solid var(--tw);border-radius:3px;margin-bottom:10px;flex-wrap:wrap}
+.shbar label{font-size:11px;color:var(--tw);font-weight:700;white-space:nowrap}
+.shbar input{width:70px}.shbar span{font-size:10px;color:var(--mu)}
+.ib2{background:var(--sf2);border:1px solid var(--bd);padding:9px 11px;border-radius:3px;font-size:11px;color:var(--mu);line-height:1.9;margin-top:8px}
+.ib2 b{color:var(--tw)}
+.tnx-bar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--bld);border:1px solid var(--bl);border-radius:3px;margin-bottom:8px;font-size:11px;flex-wrap:wrap}
+.cs-bar{display:flex;align-items:center;padding:6px 10px;background:var(--sf2);border:1px solid var(--bd);border-radius:3px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="load hidden" id="loadEl">
+  <div class="spin"></div>
+  <div id="loadTxt" style="font-family:monospace;font-size:13px;color:var(--mu)">...</div>
+</div>
+<div class="wrap">
+<h1>&#x1F1F9;&#x1F1FC; &#x53F0;&#x80A1;&#x52D5;&#x80FD;&#x9078;&#x80A1; <span class="tag">V1.8</span></h1>
+<div class="sub">&#x53F0;50+&#x4E2D;100+US ETF+Mag7 | TS=^TNX+0.5% | &#x53F0;13&#x9031;/&#x7F8E;50&#x65E5; | &#x5FEB;&#x53D6;+&#x5B58;&#x6A94;+&#x6B0A;&#x91CD;&#x5373;&#x6642;&#x751F;&#x6548;</div>
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('pool',this)">&#x1F4CB; &#x80A1;&#x6C60;</button>
+  <button class="tab" onclick="switchTab('fetch',this)">&#x1F310; &#x6293;&#x53D6;</button>
+  <button class="tab" onclick="switchTab('signal',this)">&#x1F4E1; &#x4FE1;&#x865F;</button>
+  <button class="tab" onclick="switchTab('backtest',this)">&#x1F4C8; &#x56DE;&#x6E2C;</button>
+</div>
+
+<div class="panel active" id="panel-pool">
+  <div class="shbar">
+    <label>&#x1F6E1; &#x76FE;&#x724C;&#x5206;&#x6578;</label>
+    <input type="number" id="shieldScore" placeholder="0-100" min="0" max="100">
+    <span>&#x7559;&#x7A7A;=&#x4E0D;&#x904E;&#x6FFE;</span>
+  </div>
+  <div class="card">
+    <div class="ct">&#x80A1;&#x6C60;
+      <div style="display:flex;gap:6px">
+        <button class="bo sm" onclick="selectAll()">&#x5168;&#x9078;</button>
+        <button class="bo sm" onclick="selectNone()">&#x5168;&#x505C;</button>
+      </div>
+    </div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">[US] US-ETF</span><span class="ic" id="ic0">11/11</span></div><div class="ib" id="ib0">
+<span class="sc act usc" onclick="toggleStock('SPY')" data-code="SPY" data-type="mid" data-tw="0" data-on="1"><span class="cc">SPY</span><span class="cn">SPY500</span><span class="cd" onclick="event.stopPropagation();deleteStock('SPY')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('QQQ')" data-code="QQQ" data-type="mid" data-tw="0" data-on="1"><span class="cc">QQQ</span><span class="cn">NasdaqETF</span><span class="cd" onclick="event.stopPropagation();deleteStock('QQQ')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('IWM')" data-code="IWM" data-type="mid" data-tw="0" data-on="1"><span class="cc">IWM</span><span class="cn">SmallCap</span><span class="cd" onclick="event.stopPropagation();deleteStock('IWM')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('VEU')" data-code="VEU" data-type="mid" data-tw="0" data-on="1"><span class="cc">VEU</span><span class="cn">GlobalExUS</span><span class="cd" onclick="event.stopPropagation();deleteStock('VEU')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('EFA')" data-code="EFA" data-type="mid" data-tw="0" data-on="1"><span class="cc">EFA</span><span class="cn">DevelMkt</span><span class="cd" onclick="event.stopPropagation();deleteStock('EFA')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('EEM')" data-code="EEM" data-type="mid" data-tw="0" data-on="1"><span class="cc">EEM</span><span class="cn">EmergMkt</span><span class="cd" onclick="event.stopPropagation();deleteStock('EEM')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('TLT')" data-code="TLT" data-type="mid" data-tw="0" data-on="1"><span class="cc">TLT</span><span class="cn">Bond20Y</span><span class="cd" onclick="event.stopPropagation();deleteStock('TLT')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('IEF')" data-code="IEF" data-type="mid" data-tw="0" data-on="1"><span class="cc">IEF</span><span class="cn">Bond7Y</span><span class="cd" onclick="event.stopPropagation();deleteStock('IEF')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('GLD')" data-code="GLD" data-type="mid" data-tw="0" data-on="1"><span class="cc">GLD</span><span class="cn">Gold</span><span class="cd" onclick="event.stopPropagation();deleteStock('GLD')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('SLV')" data-code="SLV" data-type="mid" data-tw="0" data-on="1"><span class="cc">SLV</span><span class="cn">Silver</span><span class="cd" onclick="event.stopPropagation();deleteStock('SLV')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('VNQ')" data-code="VNQ" data-type="mid" data-tw="0" data-on="1"><span class="cc">VNQ</span><span class="cn">REIT</span><span class="cd" onclick="event.stopPropagation();deleteStock('VNQ')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">[US] US-Mag7</span><span class="ic" id="ic1">7/7</span></div><div class="ib" id="ib1">
+<span class="sc act usc" onclick="toggleStock('AAPL')" data-code="AAPL" data-type="mid" data-tw="0" data-on="1"><span class="cc">AAPL</span><span class="cn">Apple</span><span class="cd" onclick="event.stopPropagation();deleteStock('AAPL')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('MSFT')" data-code="MSFT" data-type="mid" data-tw="0" data-on="1"><span class="cc">MSFT</span><span class="cn">Microsoft</span><span class="cd" onclick="event.stopPropagation();deleteStock('MSFT')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('GOOGL')" data-code="GOOGL" data-type="mid" data-tw="0" data-on="1"><span class="cc">GOOGL</span><span class="cn">Alphabet</span><span class="cd" onclick="event.stopPropagation();deleteStock('GOOGL')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('AMZN')" data-code="AMZN" data-type="mid" data-tw="0" data-on="1"><span class="cc">AMZN</span><span class="cn">Amazon</span><span class="cd" onclick="event.stopPropagation();deleteStock('AMZN')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('META')" data-code="META" data-type="mid" data-tw="0" data-on="1"><span class="cc">META</span><span class="cn">Meta</span><span class="cd" onclick="event.stopPropagation();deleteStock('META')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('NVDA')" data-code="NVDA" data-type="mid" data-tw="0" data-on="1"><span class="cc">NVDA</span><span class="cn">Nvidia</span><span class="cd" onclick="event.stopPropagation();deleteStock('NVDA')">&times;</span></span>
+<span class="sc act usc" onclick="toggleStock('TSLA')" data-code="TSLA" data-type="mid" data-tw="0" data-on="1"><span class="cc">TSLA</span><span class="cn">Tesla</span><span class="cd" onclick="event.stopPropagation();deleteStock('TSLA')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#20809;&#23416;&#31934;&#23494;</span><span class="ic" id="ic2">2/2</span></div><div class="ib" id="ib2">
+<span class="sc act" onclick="toggleStock('3008')" data-code="3008" data-type="tw50" data-tw="1" data-on="1"><span class="cc">3008</span><span class="cn">&#22823;&#31435;&#20809;</span></span>
+<span class="sc act" onclick="toggleStock('3406')" data-code="3406" data-type="mid" data-tw="1" data-on="1"><span class="cc">3406</span><span class="cn">&#29577;&#26230;&#20809;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3406')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#21322;&#23566;&#39636;</span><span class="ic" id="ic3">20/20</span></div><div class="ib" id="ib3">
+<span class="sc act" onclick="toggleStock('2330')" data-code="2330" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2330</span><span class="cn">&#21488;&#31309;&#38651;</span></span>
+<span class="sc act" onclick="toggleStock('2454')" data-code="2454" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2454</span><span class="cn">&#32879;&#30332;&#31185;</span></span>
+<span class="sc act" onclick="toggleStock('2303')" data-code="2303" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2303</span><span class="cn">&#32879;&#38651;</span></span>
+<span class="sc act" onclick="toggleStock('3711')" data-code="3711" data-type="tw50" data-tw="1" data-on="1"><span class="cc">3711</span><span class="cn">&#26085;&#26376;&#20809;</span></span>
+<span class="sc act" onclick="toggleStock('2344')" data-code="2344" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2344</span><span class="cn">&#33775;&#37030;&#38651;</span></span>
+<span class="sc act" onclick="toggleStock('2368')" data-code="2368" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2368</span><span class="cn">&#37329;&#20687;&#38651;</span></span>
+<span class="sc act" onclick="toggleStock('2449')" data-code="2449" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2449</span><span class="cn">&#20140;&#20803;&#38651;&#23376;</span></span>
+<span class="sc act" onclick="toggleStock('2408')" data-code="2408" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2408</span><span class="cn">&#21335;&#20126;&#31185;</span></span>
+<span class="sc act" onclick="toggleStock('3034')" data-code="3034" data-type="mid" data-tw="1" data-on="1"><span class="cc">3034</span><span class="cn">&#32879;&#35424;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3034')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2379')" data-code="2379" data-type="mid" data-tw="1" data-on="1"><span class="cc">2379</span><span class="cn">&#29790;&#26161;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2379')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2337')" data-code="2337" data-type="mid" data-tw="1" data-on="1"><span class="cc">2337</span><span class="cn">&#26106;&#23439;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2337')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3035')" data-code="3035" data-type="mid" data-tw="1" data-on="1"><span class="cc">3035</span><span class="cn">&#26234;&#21407;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3035')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('6770')" data-code="6770" data-type="mid" data-tw="1" data-on="1"><span class="cc">6770</span><span class="cn">&#21147;&#31309;&#38651;</span><span class="cd" onclick="event.stopPropagation();deleteStock('6770')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3443')" data-code="3443" data-type="mid" data-tw="1" data-on="1"><span class="cc">3443</span><span class="cn">&#21109;&#24847;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3443')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('5274')" data-code="5274" data-type="mid" data-tw="1" data-on="1"><span class="cc">5274</span><span class="cn">&#20449;&#39498;</span><span class="cd" onclick="event.stopPropagation();deleteStock('5274')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('6415')" data-code="6415" data-type="mid" data-tw="1" data-on="1"><span class="cc">6415</span><span class="cn">&#30827;&#21147;-KY</span><span class="cd" onclick="event.stopPropagation();deleteStock('6415')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('4966')" data-code="4966" data-type="mid" data-tw="1" data-on="1"><span class="cc">4966</span><span class="cn">&#35674;&#29790;-KY</span><span class="cd" onclick="event.stopPropagation();deleteStock('4966')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3014')" data-code="3014" data-type="mid" data-tw="1" data-on="1"><span class="cc">3014</span><span class="cn">&#32879;&#38525;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3014')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('4919')" data-code="4919" data-type="mid" data-tw="1" data-on="1"><span class="cc">4919</span><span class="cn">&#26032;&#21776;</span><span class="cd" onclick="event.stopPropagation();deleteStock('4919')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2231')" data-code="2231" data-type="mid" data-tw="1" data-on="1"><span class="cc">2231</span><span class="cn">&#28858;&#21319;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2231')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#24037;&#26989;&#27231;&#26800;</span><span class="ic" id="ic4">3/3</span></div><div class="ib" id="ib4">
+<span class="sc act" onclick="toggleStock('2059')" data-code="2059" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2059</span><span class="cn">&#24029;&#28246;</span></span>
+<span class="sc act" onclick="toggleStock('2049')" data-code="2049" data-type="mid" data-tw="1" data-on="1"><span class="cc">2049</span><span class="cn">&#19978;&#37504;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2049')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('1590')" data-code="1590" data-type="mid" data-tw="1" data-on="1"><span class="cc">1590</span><span class="cn">&#20126;&#24503;&#23458;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1590')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#24037;&#26989;&#38651;&#33126;</span><span class="ic" id="ic5">1/1</span></div><div class="ib" id="ib5">
+<span class="sc act" onclick="toggleStock('2395')" data-code="2395" data-type="mid" data-tw="1" data-on="1"><span class="cc">2395</span><span class="cn">&#30740;&#33775;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2395')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#27773;&#36554;</span><span class="ic" id="ic6">1/1</span></div><div class="ib" id="ib6">
+<span class="sc act" onclick="toggleStock('2207')" data-code="2207" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2207</span><span class="cn">&#21644;&#27888;&#36554;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#29983;&#25216;&#37291;&#30274;</span><span class="ic" id="ic7">3/3</span></div><div class="ib" id="ib7">
+<span class="sc act" onclick="toggleStock('6547')" data-code="6547" data-type="mid" data-tw="1" data-on="1"><span class="cc">6547</span><span class="cn">&#32654;&#26178;</span><span class="cd" onclick="event.stopPropagation();deleteStock('6547')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('1789')" data-code="1789" data-type="mid" data-tw="1" data-on="1"><span class="cc">1789</span><span class="cn">&#31070;&#38534;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1789')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('6446')" data-code="6446" data-type="mid" data-tw="1" data-on="1"><span class="cc">6446</span><span class="cn">&#34137;&#33775;&#34137;</span><span class="cd" onclick="event.stopPropagation();deleteStock('6446')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#30707;&#21270;</span><span class="ic" id="ic8">4/4</span></div><div class="ib" id="ib8">
+<span class="sc act" onclick="toggleStock('1301')" data-code="1301" data-type="tw50" data-tw="1" data-on="1"><span class="cc">1301</span><span class="cn">&#21488;&#22609;</span></span>
+<span class="sc act" onclick="toggleStock('1303')" data-code="1303" data-type="tw50" data-tw="1" data-on="1"><span class="cc">1303</span><span class="cn">&#21335;&#20126;</span></span>
+<span class="sc act" onclick="toggleStock('6505')" data-code="6505" data-type="tw50" data-tw="1" data-on="1"><span class="cc">6505</span><span class="cn">&#21488;&#22609;&#21270;</span></span>
+<span class="sc act" onclick="toggleStock('1326')" data-code="1326" data-type="mid" data-tw="1" data-on="1"><span class="cc">1326</span><span class="cn">&#21488;&#21270;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1326')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#33322;&#36939;</span><span class="ic" id="ic9">6/6</span></div><div class="ib" id="ib9">
+<span class="sc act" onclick="toggleStock('2615')" data-code="2615" data-type="mid" data-tw="1" data-on="1"><span class="cc">2615</span><span class="cn">&#33836;&#28023;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2615')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2603')" data-code="2603" data-type="mid" data-tw="1" data-on="1"><span class="cc">2603</span><span class="cn">&#38263;&#27054;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2603')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2609')" data-code="2609" data-type="mid" data-tw="1" data-on="1"><span class="cc">2609</span><span class="cn">&#38525;&#26126;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2609')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2610')" data-code="2610" data-type="mid" data-tw="1" data-on="1"><span class="cc">2610</span><span class="cn">&#33775;&#33322;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2610')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2618')" data-code="2618" data-type="mid" data-tw="1" data-on="1"><span class="cc">2618</span><span class="cn">&#38263;&#27054;&#33322;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2618')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2645')" data-code="2645" data-type="mid" data-tw="1" data-on="1"><span class="cc">2645</span><span class="cn">&#38263;&#27054;&#33322;&#22826;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2645')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#37329;&#34701;</span><span class="ic" id="ic10">19/19</span></div><div class="ib" id="ib10">
+<span class="sc act" onclick="toggleStock('2881')" data-code="2881" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2881</span><span class="cn">&#23500;&#37030;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2882')" data-code="2882" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2882</span><span class="cn">&#22283;&#27888;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2884')" data-code="2884" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2884</span><span class="cn">&#29577;&#23665;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2885')" data-code="2885" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2885</span><span class="cn">&#20803;&#22823;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2886')" data-code="2886" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2886</span><span class="cn">&#20806;&#35920;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2887')" data-code="2887" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2887</span><span class="cn">&#21488;&#26032;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2888')" data-code="2888" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2888</span><span class="cn">&#26032;&#20809;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2891')" data-code="2891" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2891</span><span class="cn">&#20013;&#20449;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2892')" data-code="2892" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2892</span><span class="cn">&#31532;&#19968;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2883')" data-code="2883" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2883</span><span class="cn">&#38283;&#30332;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2880')" data-code="2880" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2880</span><span class="cn">&#33775;&#21335;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('5880')" data-code="5880" data-type="tw50" data-tw="1" data-on="1"><span class="cc">5880</span><span class="cn">&#21512;&#24235;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2890')" data-code="2890" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2890</span><span class="cn">&#27704;&#35920;&#37329;</span></span>
+<span class="sc act" onclick="toggleStock('2838')" data-code="2838" data-type="mid" data-tw="1" data-on="1"><span class="cc">2838</span><span class="cn">&#32879;&#37030;&#37504;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2838')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('5876')" data-code="5876" data-type="mid" data-tw="1" data-on="1"><span class="cc">5876</span><span class="cn">&#19978;&#21830;&#37504;</span><span class="cd" onclick="event.stopPropagation();deleteStock('5876')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2823')" data-code="2823" data-type="mid" data-tw="1" data-on="1"><span class="cc">2823</span><span class="cn">&#20013;&#22781;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2823')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('5871')" data-code="5871" data-type="mid" data-tw="1" data-on="1"><span class="cc">5871</span><span class="cn">&#20013;&#31192;-KY</span><span class="cd" onclick="event.stopPropagation();deleteStock('5871')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2812')" data-code="2812" data-type="mid" data-tw="1" data-on="1"><span class="cc">2812</span><span class="cn">&#21488;&#20013;&#37504;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2812')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2836')" data-code="2836" data-type="mid" data-tw="1" data-on="1"><span class="cc">2836</span><span class="cn">&#39640;&#38596;&#37504;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2836')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#37628;&#37941;</span><span class="ic" id="ic11">1/1</span></div><div class="ib" id="ib11">
+<span class="sc act" onclick="toggleStock('2002')" data-code="2002" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2002</span><span class="cn">&#20013;&#37628;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#38651;&#20449;</span><span class="ic" id="ic12">3/3</span></div><div class="ib" id="ib12">
+<span class="sc act" onclick="toggleStock('2412')" data-code="2412" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2412</span><span class="cn">&#20013;&#33775;&#38651;</span></span>
+<span class="sc act" onclick="toggleStock('3045')" data-code="3045" data-type="tw50" data-tw="1" data-on="1"><span class="cc">3045</span><span class="cn">&#21488;&#28771;&#22823;</span></span>
+<span class="sc act" onclick="toggleStock('4904')" data-code="4904" data-type="mid" data-tw="1" data-on="1"><span class="cc">4904</span><span class="cn">&#36960;&#20659;</span><span class="cd" onclick="event.stopPropagation();deleteStock('4904')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#38651;&#23376;&#35069;&#36896;</span><span class="ic" id="ic13">11/11</span></div><div class="ib" id="ib13">
+<span class="sc act" onclick="toggleStock('2317')" data-code="2317" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2317</span><span class="cn">&#40251;&#28023;</span></span>
+<span class="sc act" onclick="toggleStock('2382')" data-code="2382" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2382</span><span class="cn">&#24291;&#36948;</span></span>
+<span class="sc act" onclick="toggleStock('2308')" data-code="2308" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2308</span><span class="cn">&#21488;&#36948;&#38651;</span></span>
+<span class="sc act" onclick="toggleStock('2301')" data-code="2301" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2301</span><span class="cn">&#20809;&#23542;&#31185;</span></span>
+<span class="sc act" onclick="toggleStock('2354')" data-code="2354" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2354</span><span class="cn">&#40251;&#28310;</span></span>
+<span class="sc act" onclick="toggleStock('2360')" data-code="2360" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2360</span><span class="cn">&#33268;&#33538;</span></span>
+<span class="sc act" onclick="toggleStock('4938')" data-code="4938" data-type="mid" data-tw="1" data-on="1"><span class="cc">4938</span><span class="cn">&#21644;&#30889;</span><span class="cd" onclick="event.stopPropagation();deleteStock('4938')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3231')" data-code="3231" data-type="mid" data-tw="1" data-on="1"><span class="cc">3231</span><span class="cn">&#32239;&#21109;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3231')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2356')" data-code="2356" data-type="mid" data-tw="1" data-on="1"><span class="cc">2356</span><span class="cn">&#33521;&#26989;&#36948;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2356')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3702')" data-code="3702" data-type="mid" data-tw="1" data-on="1"><span class="cc">3702</span><span class="cn">&#22823;&#32879;&#22823;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3702')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2385')" data-code="2385" data-type="mid" data-tw="1" data-on="1"><span class="cc">2385</span><span class="cn">&#32676;&#20809;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2385')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#38651;&#23376;&#38646;&#32068;&#20214;</span><span class="ic" id="ic14">17/17</span></div><div class="ib" id="ib14">
+<span class="sc act" onclick="toggleStock('3037')" data-code="3037" data-type="tw50" data-tw="1" data-on="1"><span class="cc">3037</span><span class="cn">&#27427;&#33288;</span></span>
+<span class="sc act" onclick="toggleStock('2383')" data-code="2383" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2383</span><span class="cn">&#21488;&#20809;&#38651;</span></span>
+<span class="sc act" onclick="toggleStock('3653')" data-code="3653" data-type="tw50" data-tw="1" data-on="1"><span class="cc">3653</span><span class="cn">&#20581;&#31574;</span></span>
+<span class="sc act" onclick="toggleStock('3189')" data-code="3189" data-type="mid" data-tw="1" data-on="1"><span class="cc">3189</span><span class="cn">&#26223;&#30889;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3189')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3533')" data-code="3533" data-type="mid" data-tw="1" data-on="1"><span class="cc">3533</span><span class="cn">&#22025;&#28580;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3533')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2327')" data-code="2327" data-type="mid" data-tw="1" data-on="1"><span class="cc">2327</span><span class="cn">&#22283;&#24040;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2327')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3017')" data-code="3017" data-type="mid" data-tw="1" data-on="1"><span class="cc">3017</span><span class="cn">&#22855;&#37584;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3017')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3044')" data-code="3044" data-type="mid" data-tw="1" data-on="1"><span class="cc">3044</span><span class="cn">&#20581;&#40718;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3044')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2492')" data-code="2492" data-type="mid" data-tw="1" data-on="1"><span class="cc">2492</span><span class="cn">&#33775;&#26032;&#31185;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2492')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3665')" data-code="3665" data-type="mid" data-tw="1" data-on="1"><span class="cc">3665</span><span class="cn">&#36031;&#32879;-KY</span><span class="cd" onclick="event.stopPropagation();deleteStock('3665')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('8996')" data-code="8996" data-type="mid" data-tw="1" data-on="1"><span class="cc">8996</span><span class="cn">&#39640;&#21147;</span><span class="cd" onclick="event.stopPropagation();deleteStock('8996')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2474')" data-code="2474" data-type="mid" data-tw="1" data-on="1"><span class="cc">2474</span><span class="cn">&#21487;&#25104;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2474')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2392')" data-code="2392" data-type="mid" data-tw="1" data-on="1"><span class="cc">2392</span><span class="cn">&#27491;&#23706;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2392')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2393')" data-code="2393" data-type="mid" data-tw="1" data-on="1"><span class="cc">2393</span><span class="cn">&#20740;&#20809;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2393')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('6271')" data-code="6271" data-type="mid" data-tw="1" data-on="1"><span class="cc">6271</span><span class="cn">&#21516;&#27427;&#38651;</span><span class="cd" onclick="event.stopPropagation();deleteStock('6271')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('6121')" data-code="6121" data-type="mid" data-tw="1" data-on="1"><span class="cc">6121</span><span class="cn">&#26032;&#26222;</span><span class="cd" onclick="event.stopPropagation();deleteStock('6121')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('6669')" data-code="6669" data-type="mid" data-tw="1" data-on="1"><span class="cc">6669</span><span class="cn">&#32097;&#31206;</span><span class="cd" onclick="event.stopPropagation();deleteStock('6669')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#38651;&#33126;&#21608;&#37002;</span><span class="ic" id="ic15">6/6</span></div><div class="ib" id="ib15">
+<span class="sc act" onclick="toggleStock('2357')" data-code="2357" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2357</span><span class="cn">&#33775;&#30889;</span></span>
+<span class="sc act" onclick="toggleStock('2353')" data-code="2353" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2353</span><span class="cn">&#23439;&#30849;</span></span>
+<span class="sc act" onclick="toggleStock('2324')" data-code="2324" data-type="mid" data-tw="1" data-on="1"><span class="cc">2324</span><span class="cn">&#20161;&#23542;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2324')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2377')" data-code="2377" data-type="mid" data-tw="1" data-on="1"><span class="cc">2377</span><span class="cn">&#24494;&#26143;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2377')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2376')" data-code="2376" data-type="mid" data-tw="1" data-on="1"><span class="cc">2376</span><span class="cn">&#25216;&#20025;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2376')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('3706')" data-code="3706" data-type="mid" data-tw="1" data-on="1"><span class="cc">3706</span><span class="cn">&#31070;&#36798;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3706')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#38754;&#26495;</span><span class="ic" id="ic16">2/2</span></div><div class="ib" id="ib16">
+<span class="sc act" onclick="toggleStock('2409')" data-code="2409" data-type="tw50" data-tw="1" data-on="1"><span class="cc">2409</span><span class="cn">&#21451;&#36948;</span></span>
+<span class="sc act" onclick="toggleStock('3481')" data-code="3481" data-type="mid" data-tw="1" data-on="1"><span class="cc">3481</span><span class="cn">&#32676;&#21019;</span><span class="cd" onclick="event.stopPropagation();deleteStock('3481')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#39135;&#21697;&#28040;&#36027;</span><span class="ic" id="ic17">3/3</span></div><div class="ib" id="ib17">
+<span class="sc act" onclick="toggleStock('1216')" data-code="1216" data-type="tw50" data-tw="1" data-on="1"><span class="cc">1216</span><span class="cn">&#32113;&#19968;&#20225;&#26989;</span></span>
+<span class="sc act" onclick="toggleStock('2912')" data-code="2912" data-type="mid" data-tw="1" data-on="1"><span class="cc">2912</span><span class="cn">&#32113;&#19968;&#36229;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2912')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('1210')" data-code="1210" data-type="mid" data-tw="1" data-on="1"><span class="cc">1210</span><span class="cn">&#22823;&#25104;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1210')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#31179;&#32455;&#25104;&#34399;</span><span class="ic" id="ic18">4/4</span></div><div class="ib" id="ib18">
+<span class="sc act" onclick="toggleStock('1476')" data-code="1476" data-type="mid" data-tw="1" data-on="1"><span class="cc">1476</span><span class="cn">&#20418;&#40517;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1476')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('9910')" data-code="9910" data-type="mid" data-tw="1" data-on="1"><span class="cc">9910</span><span class="cn">&#35406;&#27877;</span><span class="cd" onclick="event.stopPropagation();deleteStock('9910')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('1434')" data-code="1434" data-type="mid" data-tw="1" data-on="1"><span class="cc">1434</span><span class="cn">&#31119;&#61500;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1434')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('1440')" data-code="1440" data-type="mid" data-tw="1" data-on="1"><span class="cc">1440</span><span class="cn">&#21335;&#31192;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1440')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#27053;&#36782;&#27491;&#26032;</span><span class="ic" id="ic19">3/3</span></div><div class="ib" id="ib19">
+<span class="sc act" onclick="toggleStock('2105')" data-code="2105" data-type="mid" data-tw="1" data-on="1"><span class="cc">2105</span><span class="cn">&#27491;&#26032;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2105')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2206')" data-code="2206" data-type="mid" data-tw="1" data-on="1"><span class="cc">2206</span><span class="cn">&#19977;&#38525;&#24037;&#26989;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2206')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2201')" data-code="2201" data-type="mid" data-tw="1" data-on="1"><span class="cc">2201</span><span class="cn">&#35611;&#38534;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2201')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#24314;&#26448;&#19981;&#21205;&#29986;</span><span class="ic" id="ic20">3/3</span></div><div class="ib" id="ib20">
+<span class="sc act" onclick="toggleStock('2542')" data-code="2542" data-type="mid" data-tw="1" data-on="1"><span class="cc">2542</span><span class="cn">&#20852;&#23500;&#30332;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2542')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('5522')" data-code="5522" data-type="mid" data-tw="1" data-on="1"><span class="cc">5522</span><span class="cn">&#36960;&#38596;</span><span class="cd" onclick="event.stopPropagation();deleteStock('5522')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('1513')" data-code="1513" data-type="mid" data-tw="1" data-on="1"><span class="cc">1513</span><span class="cn">&#20013;&#33209;&#38651;</span><span class="cd" onclick="event.stopPropagation();deleteStock('1513')">&times;</span></span>
+</div></div>
+<div class="ig"><div class="ih" onclick="toggleInd(this)"><span class="in">&#36890;&#36335;&#27969;&#36890;</span><span class="ic" id="ic21">4/4</span></div><div class="ib" id="ib21">
+<span class="sc act" onclick="toggleStock('2347')" data-code="2347" data-type="mid" data-tw="1" data-on="1"><span class="cc">2347</span><span class="cn">&#32879;&#24375;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2347')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2915')" data-code="2915" data-type="mid" data-tw="1" data-on="1"><span class="cc">2915</span><span class="cn">&#28070;&#27877;&#20840;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2915')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('9904')" data-code="9904" data-type="mid" data-tw="1" data-on="1"><span class="cc">9904</span><span class="cn">&#23453;&#25104;</span><span class="cd" onclick="event.stopPropagation();deleteStock('9904')">&times;</span></span>
+<span class="sc act" onclick="toggleStock('2903')" data-code="2903" data-type="mid" data-tw="1" data-on="1"><span class="cc">2903</span><span class="cn">&#36960;&#30334;</span><span class="cd" onclick="event.stopPropagation();deleteStock('2903')">&times;</span></span>
+</div></div>
+    <div class="cust">
+      <input type="text" id="cusT" placeholder="2330 or SPY" style="max-width:120px">
+      <input type="text" id="cusN" placeholder="Name" style="max-width:90px">
+      <select id="cusI" style="max-width:110px">
+<option value="US-ETF">US-ETF</option>
+<option value="US-Mag7">US-Mag7</option>
+<option value="&#20809;&#23416;&#31934;&#23494;">&#20809;&#23416;&#31934;&#23494;</option>
+<option value="&#21322;&#23566;&#39636;">&#21322;&#23566;&#39636;</option>
+<option value="&#24037;&#26989;&#27231;&#26800;">&#24037;&#26989;&#27231;&#26800;</option>
+<option value="&#24037;&#26989;&#38651;&#33126;">&#24037;&#26989;&#38651;&#33126;</option>
+<option value="&#27773;&#36554;">&#27773;&#36554;</option>
+<option value="&#29983;&#25216;&#37291;&#30274;">&#29983;&#25216;&#37291;&#30274;</option>
+<option value="&#30707;&#21270;">&#30707;&#21270;</option>
+<option value="&#33322;&#36939;">&#33322;&#36939;</option>
+<option value="&#37329;&#34701;">&#37329;&#34701;</option>
+<option value="&#37628;&#37941;">&#37628;&#37941;</option>
+<option value="&#38651;&#20449;">&#38651;&#20449;</option>
+<option value="&#38651;&#23376;&#35069;&#36896;">&#38651;&#23376;&#35069;&#36896;</option>
+<option value="&#38651;&#23376;&#38646;&#32068;&#20214;">&#38651;&#23376;&#38646;&#32068;&#20214;</option>
+<option value="&#38651;&#33126;&#21608;&#37002;">&#38651;&#33126;&#21608;&#37002;</option>
+<option value="&#38754;&#26495;">&#38754;&#26495;</option>
+<option value="&#39135;&#21697;&#28040;&#36027;">&#39135;&#21697;&#28040;&#36027;</option>
+<option value="&#31179;&#32455;&#25104;&#34399;">&#31179;&#32455;&#25104;&#34399;</option>
+<option value="&#27053;&#36782;&#27491;&#26032;">&#27053;&#36782;&#27491;&#26032;</option>
+<option value="&#24314;&#26448;&#19981;&#21205;&#29986;">&#24314;&#26448;&#19981;&#21205;&#29986;</option>
+<option value="&#36890;&#36335;&#27969;&#36890;">&#36890;&#36335;&#27969;&#36890;</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--mu);cursor:pointer">
+        <input type="checkbox" id="cusUS" style="width:14px;accent-color:var(--us)"> US
+      </label>
+      <button class="bo sm" onclick="addCustom()">+ Add</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">&#x8A55;&#x5206;&#x6B0A;&#x91CD; <span style="font-size:10px;color:var(--gr)">&#x6539;&#x5B8C;&#x6B0A;&#x91CD;&#x76F4;&#x63A5;&#x91CD;&#x8A08;</span></div>
+    <div class="g3">
+      <div class="fi"><label>&#x52D5;&#x80FD;z(%)</label><input type="number" id="wMom" value="50" min="0" max="100"></div>
+      <div class="fi"><label>Bias(%)</label><input type="number" id="wBias" value="15" min="0" max="100"></div>
+      <div class="fi"><label>Slope(%)</label><input type="number" id="wSlope" value="15" min="0" max="100"></div>
+      <div class="fi"><label>&#x91CF;&#x80FD;(%)</label><input type="number" id="wVol" value="10" min="0" max="100"></div>
+      <div class="fi"><label>K&#x68D2;(%)</label><input type="number" id="wKbar" value="10" min="0" max="100"></div>
+      <div class="fi"><label>Corr Thresh</label><input type="number" id="corrT" value="0.75" step="0.05" min="0.3" max="1"></div>
+    </div>
+    <div class="ib2">
+      <b>&#x52D5;&#x80FD;</b>: 0.5z12+0.3z6+0.2z3 (&#x6708;&#x983B;) |
+      <b>&#x53F0;</b>: &#x9031;&#x983B; 13&#x9031; | <b>US/Mag7</b>: &#x65E5;&#x983B; 50&#x65E5;<br>
+      <b>TS</b>: R12 &gt; ^TNX + spread%
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-fetch">
+  <div class="card">
+    <div class="ct">Proxy</div>
+    <div class="fi"><label>URL</label>
+      <input type="text" id="proxyUrl" value="https://shield-proxy.depross0205.workers.dev?url=" autocorrect="off" spellcheck="false">
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">&#x8CC7;&#x6599;&#x6293;&#x53D6;</div>
+    <div class="tnx-bar">
+      <span>^TNX:</span>
+      <b id="tnxVal" style="color:var(--bl);font-family:monospace">not fetched</b>
+      <span id="tnxThresh" style="color:var(--mu)"></span>
+    </div>
+    <div id="fetchStat" style="display:flex;flex-wrap:wrap;margin-bottom:8px"></div>
+    <button class="btw" onclick="fetchAll()">&#x1F310; &#x6293;&#x53D6;&#x5168;&#x90E8; - &#x81EA;&#x52D5;&#x5EFA;&#x5FEB;&#x53D6;</button>
+    <div class="log" id="fetchLog"></div>
+    <div class="pw hidden" id="fetchProg"><div class="pf" id="fetchFill" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <div class="ct">&#x5B58;&#x6A94;/&#x8F09;&#x5165;
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="bo sm" onclick="dlJson()">&#x2B07; JSON</button>
+        <button class="bo sm" onclick="dlOHLCV()">&#x2B07; OHLCV</button>
+        <button class="bo sm" onclick="dlMonthly()">&#x2B07; &#x6708;&#x983B;</button>
+      </div>
+    </div>
+    <div class="cs-bar"><span id="cacheTxt" style="font-size:11px;font-weight:700">Cache: not built</span></div>
+    <button class="bte" onclick="fetchUpdate()" style="margin-bottom:8px">&#x21BB; &#x81EA;&#x52D5;&#x88DC;&#x9F4A;&#x66F4;&#x65B0; &#x2014; &#x88DC;&#x7F3A;&#x6A19;&#x7684;+&#x88DC;&#x7F3A;&#x65E5;&#x671F;</button>
+    <div class="log" id="updateLog"></div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <input type="file" id="fileJson" accept=".json" style="display:none" onchange="upJson(this)">
+      <button class="bo sm" onclick="document.getElementById('fileJson').click()">&#x2B06; JSON &#x9084;&#x539F;</button>
+      <span style="font-size:10px;color:var(--mu)">&#x4E0A;&#x50B3;&#x5F8C;&#x81EA;&#x52D5;&#x91CD;&#x5EFA;&#x5FEB;&#x53D6;</span>
+    </div>
+    <div class="log" id="dlLog"></div>
+  </div>
+</div>
+
+<div class="panel" id="panel-signal">
+  <div class="card">
+    <div class="ct">&#x1F4E1; &#x5373;&#x6642;&#x4FE1;&#x865F;</div>
+    <div id="sigContent" style="color:var(--mu);font-size:12px">&#x8ACB;&#x5148;&#x6293;&#x53D6;&#x8CC7;&#x6599;&#x3002;</div>
+    <button class="btw" onclick="calcSignal()" style="margin-top:10px">&#x25B6; &#x8A08;&#x7B97;&#x4FE1;&#x865F;</button>
+  </div>
+  <div class="card hidden" id="stCard">
+    <div class="ct">&#x5168;&#x80A1;&#x6C60;&#x6392;&#x884C;</div>
+    <div class="tw-wrap"><table><thead><tr>
+      <th>#</th><th>Code</th><th>Name</th><th>Ind</th>
+      <th>Score</th><th>MomZ</th><th>BiasZ</th><th>SlopeZ</th><th>VolZ</th><th>KbarZ</th>
+      <th>R12</th><th>R6</th><th>R3</th><th>TS</th>
+    </tr></thead><tbody id="stBody"></tbody></table></div>
+  </div>
+</div>
+
+<div class="panel" id="panel-backtest">
+  <div class="card">
+    <div class="ct">&#x56DE;&#x6E2C;&#x8A2D;&#x5B9A;</div>
+    <div class="g3">
+      <div class="fi"><label>Start</label><input type="text" id="btS" placeholder="YYYY-MM"></div>
+      <div class="fi"><label>End</label><input type="text" id="btE" placeholder="YYYY-MM"></div>
+      <div class="fi"><label>Max Hold</label><input type="number" id="btH" value="3" min="1" max="10"></div>
+      <div class="fi"><label>Capital</label><input type="number" id="btCap" value="100000"></div>
+      <div class="fi"><label>Cost(%)</label><input type="number" id="btC" value="0.3" step="0.1"></div>
+      <div class="fi"><label>TNX Spread(%)</label><input type="number" id="btSpread" value="0.5" step="0.1"></div>
+      <div class="fi"><label>Weight Mode</label>
+        <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="wtMode" id="wtEq" value="eq" checked style="width:14px;accent-color:var(--tw)"> &#x7B49;&#x6B0A;
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="wtMode" id="wtRank" value="rank" style="width:14px;accent-color:var(--tw)"> &#x6392;&#x540D;&#x52A0;&#x6B0A;
+          </label>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btw" onclick="runBT()" style="flex:1">&#x25B6; &#x57F7;&#x884C;&#x56DE;&#x6E2C;</button>
+      <button class="bo" onclick="runCompare()" style="flex:1">&#x25B6; &#x6BD4;&#x8F03; N=1~max</button>
+    </div>
+    <div class="log" id="btLog"></div>
+  </div>
+  <div id="btRes" class="hidden">
+    <div id="btMetrics" style="margin-bottom:10px"></div>
+    <div style="margin-bottom:8px">
+      <button class="bo sm" onclick="toggleCharts(this)" id="btnChart" style="width:100%;text-align:left">&#x25B6; Show Charts (NAV / MDD)</button>
+      <div id="chartArea" style="display:none;margin-top:6px">
+        <div class="cw"><div class="ct2">NAV vs TAIEX</div><div style="position:relative;height:220px"><canvas id="navC"></canvas></div></div>
+        <div class="cw"><div class="ct2">MDD</div><div style="position:relative;height:120px"><canvas id="ddC"></canvas></div></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+      <button class="bo sm" onclick="dlBtCsv()">&#x2B07; CSV</button>
+    </div>
+    <div class="tw-wrap"><table><thead><tr>
+      <th>Month / Stock</th><th>Holdings</th><th>Hurdle%</th><th>Return%</th><th>NAV / +$PnL</th><th>TAIEX / Contrib</th><th>Alpha%</th>
+    </tr></thead><tbody id="btBody"></tbody></table></div>
+  </div>
+</div>
+</div>
+<script>var WEEKLY={},MONTHLY={},DAILY={},BENCH_MONTHLY=[],TNX_MONTHLY=[];
+var RAW_SCORES={},BT_RESULT=null,CHART={},CACHE_BUILT=false,CACHE_TS=null;
+var N_TW=13,N_US=50;
+
+function $(i){return document.getElementById(i);}
+function gv(i){var e=$(i);return e?parseFloat(e.value)||0:0;}
+function sl(id,msg,ok){var e=$(id);if(!e)return;e.textContent=msg;e.style.color=ok===true?‘var(–gr)’:ok===false?‘var(–re)’:‘var(–mu)’;}
+function showL(t){$(‘loadEl’).classList.remove(‘hidden’);$(‘loadTxt’).textContent=t||’…’;}
+function hideL(){$(‘loadEl’).classList.add(‘hidden’);}
+function dlBlob(b,n){var a=document.createElement(‘a’);a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);}
+function dlText(t,n,ty){dlBlob(new Blob([t],{type:ty||‘text/plain;charset=utf-8’}),n);}
+
+function switchTab(name,el){
+var tabs=document.querySelectorAll(’.tab’),panels=document.querySelectorAll(’.panel’);
+for(var i=0;i<tabs.length;i++)tabs[i].classList.remove(‘active’);
+for(var i=0;i<panels.length;i++)panels[i].classList.remove(‘active’);
+if(el)el.classList.add(‘active’);
+var p=$(‘panel-’+name);if(p)p.classList.add(‘active’);
+}
+function toggleStock(code){
+var el=document.querySelector(’[data-code=”’+code+’”]’);if(!el)return;
+var on=el.dataset.on===‘1’;el.dataset.on=on?‘0’:‘1’;el.classList.toggle(‘act’,!on);updCount(el);
+}
+function deleteStock(code){
+var el=document.querySelector(’[data-code=”’+code+’”]’);
+if(!el||el.dataset.type===‘tw50’)return;
+var ib=el.closest(’.ib’);el.remove();if(ib)updCountByIb(ib);
+}
+function toggleInd(ih){var ib=ih.nextElementSibling;if(ib)ib.classList.toggle(‘col’);}
+function selectAll(){document.querySelectorAll(’[data-code]’).forEach(function(el){el.dataset.on=‘1’;el.classList.add(‘act’);});updAllCounts();}
+function selectNone(){document.querySelectorAll(’[data-code]’).forEach(function(el){el.dataset.on=‘0’;el.classList.remove(‘act’);});updAllCounts();}
+function updCount(chip){var ib=chip.closest(’.ib’);if(ib)updCountByIb(ib);}
+function updCountByIb(ib){
+var all=ib.querySelectorAll(’[data-code]’),act=ib.querySelectorAll(’[data-on=“1”]’);
+var ih=ib.previousElementSibling;if(ih){var ic=ih.querySelector(’.ic’);if(ic)ic.textContent=act.length+’/’+all.length;}
+}
+function updAllCounts(){document.querySelectorAll(’.ib’).forEach(function(ib){updCountByIb(ib);});}
+function addCustom(){
+var raw=$(‘cusT’).value.trim().toUpperCase();var isUS=$(‘cusUS’)&&$(‘cusUS’).checked;
+var code=isUS?raw:raw.replace(’.TW’,’’);if(!code)return;
+if(document.querySelector(’[data-code=”’+code+’”]’))return;
+var name=$(‘cusN’).value.trim()||code;
+var chip=document.createElement(‘span’);
+chip.className=‘sc act’+(isUS?’ usc’:’’);chip.setAttribute(‘onclick’,“toggleStock(’”+code+”’)”);
+chip.dataset.code=code;chip.dataset.type=‘mid’;chip.dataset.tw=isUS?‘0’:‘1’;chip.dataset.on=‘1’;
+chip.innerHTML=’<span class="cc">’+code+’</span><span class="cn">’+name+’</span><span class="cd" onclick="event.stopPropagation();deleteStock(\''+code+'\')">x</span>’;
+var ibs=document.querySelectorAll(’.ib’);if(ibs.length)ibs[0].appendChild(chip);
+$(‘cusT’).value=’’;$(‘cusN’).value=’’;updAllCounts();
+}
+function getEnabledStocks(){
+var result=[];
+document.querySelectorAll(’[data-code][data-on=“1”]’).forEach(function(el){
+var cn=el.querySelector(’.cn’);result.push({c:el.dataset.code,n:cn?cn.textContent:’’,type:el.dataset.type,tw:el.dataset.tw===‘1’});
+});
+return result;
+}
+function getStockName(code){var el=document.querySelector(’[data-code=”’+code+’”] .cn’);return el?el.textContent:code;}
+function getWeightMode(){var r=document.querySelector(‘input[name=“wtMode”]:checked’);return r?r.value:‘eq’;}
+function calcWeights(sel,mode){
+var n=sel.length;if(!n)return{};var newH={};
+if(mode===‘rank’){var denom=n*(n+1)/2;sel.forEach(function(r,i){newH[r.s.c]=(n-i)/denom;});}
+else{var w=1/n;sel.forEach(function(r){newH[r.s.c]=w;});}
+return newH;
+}
+function buildProxies(){
+var p=$(‘proxyUrl’)?$(‘proxyUrl’).value.trim():’’;
+if(p&&!p.includes(‘url=’))p+=p.endsWith(’/’)?’?url=’:’/?url=’;
+return [p,‘https://api.allorigins.win/raw?url=’,‘https://api.codetabs.com/v1/proxy?quest=’].filter(Boolean);
+}
+async function fp(url,proxies){
+var last;
+for(var i=0;i<proxies.length;i++){try{var r=await fetch(proxies[i]+encodeURIComponent(url));if(!r.ok)throw new Error(‘HTTP ‘+r.status);return r;}catch(e){last=e;}}
+throw last||new Error(‘all proxies failed’);
+}
+function buildTicker(s){
+if(!s.tw)return s.c;if(s.c.charAt(0)===’^’||s.c.indexOf(’.’)>=0)return s.c;return s.c+’.TW’;
+}
+async function fetchOHLCV(s,interval,prx){
+var tk=buildTicker(s);
+var r=await fp(‘https://query1.finance.yahoo.com/v8/finance/chart/’+tk+’?range=max&interval=’+interval,prx);
+var j=await r.json();var ch=j&&j.chart&&j.chart.result&&j.chart.result[0];
+if(!ch||!ch.timestamp)throw new Error(‘no data’);
+var out=[];
+ch.timestamp.forEach(function(ts,i){
+var q=ch.indicators.quote[0];var h=q.high[i],l=q.low[i],c=q.close[i],v=q.volume[i];
+if(c&&c>0&&h&&l&&v!=null)out.push({date:new Date(ts*1000).toISOString().slice(0,10),h:+h.toFixed(3),l:+l.toFixed(3),c:+c.toFixed(3),v:+v});
+});
+return out;
+}
+async function fetchMonthly(tkOrS,prx){
+var tk=typeof tkOrS===‘string’?tkOrS:buildTicker(tkOrS);
+var r=await fp(‘https://query1.finance.yahoo.com/v8/finance/chart/’+tk+’?range=max&interval=1mo’,prx);
+var j=await r.json();var ch=j&&j.chart&&j.chart.result&&j.chart.result[0];
+if(!ch||!ch.timestamp)throw new Error(‘no data’);
+var out=[];
+ch.timestamp.forEach(function(ts,i){
+var adj=ch.indicators.adjclose&&ch.indicators.adjclose[0]?ch.indicators.adjclose[0].adjclose[i]:null;
+var cl=ch.indicators.quote[0].close[i];var c=adj!=null?adj:cl;
+if(c&&c>0)out.push({date:new Date(ts*1000).toISOString().slice(0,7),c:+c.toFixed(4)});
+});
+var seen={};out.forEach(function(p){seen[p.date]=p;});
+return Object.values(seen).sort(function(a,b){return a.date.localeCompare(b.date);});
+}
+
+function mergeArr(existing,newData){
+var map={};
+(existing||[]).forEach(function(d){map[d.date]=d;});
+(newData||[]).forEach(function(d){map[d.date]=d;});
+return Object.values(map).sort(function(a,b){return a.date.localeCompare(b.date);});
+}
+
+async function fetchUpdate(){
+var prx=buildProxies();
+var stocks=getEnabledStocks();
+var twCut=new Date(Date.now()-8*24*60*60*1000).toISOString().slice(0,10);
+var usCut=new Date(Date.now()-2*24*60*60*1000).toISOString().slice(0,10);
+var thisMonth=new Date().toISOString().slice(0,7);
+var missing=[],stale=[];
+stocks.forEach(function(s){
+if(s.tw){
+if(!WEEKLY[s.c]||!WEEKLY[s.c].length||!MONTHLY[s.c]||!MONTHLY[s.c].length){missing.push(s);return;}
+if(WEEKLY[s.c][WEEKLY[s.c].length-1].date<twCut)stale.push(s);
+}else{
+if(!DAILY[s.c]||!DAILY[s.c].length||!MONTHLY[s.c]||!MONTHLY[s.c].length){missing.push(s);return;}
+if(DAILY[s.c][DAILY[s.c].length-1].date<usCut)stale.push(s);
+}
+});
+var benchStale=!BENCH_MONTHLY.length||(BENCH_MONTHLY[BENCH_MONTHLY.length-1].date<thisMonth);
+var tnxStale=!TNX_MONTHLY.length||(TNX_MONTHLY[TNX_MONTHLY.length-1].date<thisMonth);
+if(!missing.length&&!stale.length&&!benchStale&&!tnxStale){sl(‘updateLog’,‘All data up to date.’,true);return;}
+var toFetch=missing.concat(stale),failed=[];
+showL(‘Updating ‘+toFetch.length+’ stocks…’);
+for(var i=0;i<toFetch.length;i++){
+var s=toFetch[i];var isMissing=missing.indexOf(s)>=0;
+$(‘loadTxt’).textContent=(isMissing?’[NEW] ‘:’[UPD] ‘)+s.c+’ (’+(i+1)+’/’+toFetch.length+’)’;
+try{
+if(s.tw){WEEKLY[s.c]=mergeArr(WEEKLY[s.c],await fetchOHLCV(s,‘1wk’,prx));MONTHLY[s.c]=mergeArr(MONTHLY[s.c],await fetchMonthly(s,prx));}
+else{DAILY[s.c]=mergeArr(DAILY[s.c],await fetchOHLCV(s,‘1d’,prx));MONTHLY[s.c]=mergeArr(MONTHLY[s.c],await fetchMonthly(s,prx));}
+}catch(e){failed.push(s.c);}
+await new Promise(function(r){setTimeout(r,350);});
+}
+if(benchStale){$(‘loadTxt’).textContent=‘Update ^TWII…’;try{BENCH_MONTHLY=mergeArr(BENCH_MONTHLY,await fetchMonthly(’^TWII’,prx));}catch(e){failed.push(’^TWII’);}await new Promise(function(r){setTimeout(r,350);});}
+if(tnxStale){
+$(‘loadTxt’).textContent=‘Update ^TNX…’;
+try{
+var raw=await fetchMonthly(’^TNX’,prx);TNX_MONTHLY=[];var lastV=null;
+if(raw.length){var byD={};raw.forEach(function(p){byD[p.date]=p.c;});var cur=new Date(raw[0].date+’-01’),end=new Date(raw[raw.length-1].date+’-01’);while(cur<=end){var m=cur.toISOString().slice(0,7);if(byD[m]!=null)lastV=byD[m];if(lastV!=null)TNX_MONTHLY.push({date:m,c:lastV});cur.setMonth(cur.getMonth()+1);}}
+updTNX();
+}catch(e){failed.push(’^TNX’);}
+}
+hideL();updFetchStat(stocks);
+var msg=‘Done. New:’+missing.length+’ Updated:’+stale.length;
+if(missing.length)msg+=’\nNEW: ‘+missing.map(function(s){return s.c;}).join(’, ‘);
+if(stale.length)msg+=’\nUPD: ‘+stale.map(function(s){return s.c;}).join(’, ‘);
+if(failed.length)msg+=’\nFAIL: ‘+failed.join(’, ’);
+sl(‘updateLog’,msg,failed.length===0);
+await buildCache(getEnabledStocks());
+}
+
+async function fetchAll(){
+var prx=buildProxies();var stocks=getEnabledStocks();
+var tw=stocks.filter(function(s){return s.tw;}),us=stocks.filter(function(s){return !s.tw;});
+var total=tw.length*2+us.length*2+2,done=0;
+function prog(lbl){$(‘loadTxt’).textContent=lbl;$(‘fetchFill’).style.width=((done++/total)*100)+’%’;}
+showL(‘Preparing…’);$(‘fetchProg’).classList.remove(‘hidden’);var failed=[];
+for(var i=0;i<tw.length;i++){var s=tw[i];prog(‘TW wk: ‘+s.c+’ (’+(i+1)+’/’+tw.length+’)’);try{WEEKLY[s.c]=await fetchOHLCV(s,‘1wk’,prx);}catch(e){failed.push(s.c+’-W’);}await new Promise(function(r){setTimeout(r,350);});prog(‘TW mo: ‘+s.c);try{MONTHLY[s.c]=await fetchMonthly(s,prx);}catch(e){failed.push(s.c+’-M’);}await new Promise(function(r){setTimeout(r,350);});}
+for(var i2=0;i2<us.length;i2++){var s2=us[i2];prog(‘US day: ‘+s2.c+’ (’+(i2+1)+’/’+us.length+’)’);try{DAILY[s2.c]=await fetchOHLCV(s2,‘1d’,prx);}catch(e){failed.push(s2.c+’-D’);}await new Promise(function(r){setTimeout(r,350);});prog(‘US mo: ‘+s2.c);try{MONTHLY[s2.c]=await fetchMonthly(s2,prx);}catch(e){failed.push(s2.c+’-M’);}await new Promise(function(r){setTimeout(r,350);});}
+prog(’^TWII’);try{BENCH_MONTHLY=await fetchMonthly(’^TWII’,prx);}catch(e){failed.push(’^TWII’);}await new Promise(function(r){setTimeout(r,350);});
+prog(’^TNX’);
+try{var raw=await fetchMonthly(’^TNX’,prx);TNX_MONTHLY=[];var lastV=null;if(raw.length){var byD={};raw.forEach(function(p){byD[p.date]=p.c;});var cur=new Date(raw[0].date+’-01’),end=new Date(raw[raw.length-1].date+’-01’);while(cur<=end){var m=cur.toISOString().slice(0,7);if(byD[m]!=null)lastV=byD[m];if(lastV!=null)TNX_MONTHLY.push({date:m,c:lastV});cur.setMonth(cur.getMonth()+1);}}updTNX();}catch(e){failed.push(’^TNX’);}
+$(‘fetchFill’).style.width=‘100%’;$(‘fetchProg’).classList.add(‘hidden’);
+sl(‘fetchLog’,‘Done ‘+(total-failed.length)+’/’+total+(failed.length?’ | fail:’+failed.slice(0,8).join(’,’):’’),failed.length===0);
+updFetchStat(stocks);hideL();await buildCache(stocks);
+}
+
+function updTNX(){if(!TNX_MONTHLY.length)return;var last=TNX_MONTHLY[TNX_MONTHLY.length-1];var sp=gv(‘btSpread’)||0.5;var el=$(‘tnxVal’);if(el)el.textContent=last.c.toFixed(2)+’% (’+last.date+’)’;var el2=$(‘tnxThresh’);if(el2)el2.textContent=‘TS: ‘+(last.c+sp).toFixed(2)+’%’;}
+function updFetchStat(stocks){
+var bar=$(‘fetchStat’);if(!bar)return;
+bar.innerHTML=(stocks||getEnabledStocks()).map(function(s){var ok=s.tw?(WEEKLY[s.c]&&MONTHLY[s.c]):(DAILY[s.c]&&MONTHLY[s.c]);var col=ok?(s.tw?‘var(–te)’:‘var(–us)’):‘var(–mu)’;var bg=ok?(s.tw?‘var(–ted)’:‘var(–usd)’):‘var(–sf2)’;var bd=ok?(s.tw?‘var(–te)’:‘var(–us)’):‘var(–bd)’;return ‘<span class="bdg" style="background:'+bg+';color:'+col+';border:1px solid '+bd+'">’+s.c+’</span>’;}).join(’’);
+}
+
+function calcVWMA(bars,n){if(bars.length<n)return null;var sl=bars.slice(-n),sp=0,sv=0;sl.forEach(function(b){sp+=b.c*b.v;sv+=b.v;});return sv>0?sp/sv:null;}
+function calcBias(bars,N){var v=calcVWMA(bars,N);return v?(bars[bars.length-1].c-v)/v:null;}
+function calcSlope(bars,N){
+if(bars.length<N+3)return null;var va=[];
+for(var i=bars.length-N;i<bars.length;i++){var sl=bars.slice(Math.max(0,i-N+1),i+1);var sp=0,sv=0;sl.forEach(function(b){sp+=b.c*b.v;sv+=b.v;});if(sv>0)va.push(sp/sv);}
+if(va.length<Math.floor(N/2))return null;
+var n=va.length,sx=0,sy=0,sxy=0,sx2=0;for(var j=0;j<n;j++){sx+=j;sy+=va[j];sxy+=j*va[j];sx2+=j*j;}
+var den=n*sx2-sx*sx;if(!den)return 0;return (n*sxy-sx*sy)/den/(va[0]||1);
+}
+function calcVol(bars,N){
+if(bars.length<N+1)return null;var sl=bars.slice(-N),sc=[];
+for(var i=1;i<sl.length;i++){var pr=(sl[i].c-sl[i-1].c)/(sl[i-1].c||1);var vr=sl[i-1].v>0?sl[i].v/sl[i-1].v:1;sc.push((pr>=0?1:-1)*(pr>=0?(vr-1):(1-vr)));}
+return sc.length?sc.reduce(function(a,b){return a+b;},0)/sc.length:null;
+}
+function calcKbar(bars,N){if(bars.length<N)return null;var sl=bars.slice(-N);var v=sl.map(function(b){var r=b.h-b.l;return r>0?(b.c-b.l)/r:0.5;});return v.reduce(function(a,b){return a+b;},0)/v.length;}
+function momZ(mo,idx,n){
+if(idx<n)return null;var pn=mo[idx-1].c,p0=mo[idx-n].c;if(!p0||p0<=0)return null;
+var ret=pn/p0-1,rets=[];for(var i=idx-n+1;i<idx;i++)if(mo[i-1].c>0)rets.push(mo[i].c/mo[i-1].c-1);
+if(rets.length<3)return null;var avg=rets.reduce(function(a,b){return a+b;},0)/rets.length;
+var std=Math.sqrt(rets.reduce(function(a,b){return a+(b-avg)*(b-avg);},0)/rets.length);return std>0?ret/std:null;
+}
+function rawMom(mo,idx){var z12=momZ(mo,idx,12),z6=momZ(mo,idx,6),z3=momZ(mo,idx,3);if(z12===null||z6===null||z3===null)return null;return 0.5*z12+0.3*z6+0.2*z3;}
+function getMonthIdx(mo,yyyymm){for(var i=0;i<mo.length;i++){if(mo[i].date>yyyymm)return i;}return mo.length;}
+
+async function buildCache(stocks){
+stocks=stocks||getEnabledStocks();
+var withData=stocks.filter(function(s){return s.tw?(WEEKLY[s.c]&&MONTHLY[s.c]):(DAILY[s.c]&&MONTHLY[s.c]);});
+if(!withData.length){updCacheSt();return;}
+showL(‘Building cache…’);RAW_SCORES={};
+for(var si=0;si<withData.length;si++){
+var s=withData[si];$(‘loadTxt’).textContent=‘Cache: ‘+s.c+’ (’+(si+1)+’/’+withData.length+’)’;
+var mo=MONTHLY[s.c],bars=s.tw?WEEKLY[s.c]:DAILY[s.c],N=s.tw?N_TW:N_US;if(!mo||!bars)continue;
+RAW_SCORES[s.c]={};var allMo=mo.map(function(p){return p.date;});
+for(var mi=13;mi<allMo.length;mi++){
+var yyyymm=allMo[mi];var mIdx=getMonthIdx(mo,yyyymm);
+var cut=bars.filter(function(b){return b.date<=yyyymm+’-31’;});
+var rm=rawMom(mo,mIdx),rb=cut.length>=N?calcBias(cut,N):null,rs=cut.length>=N+3?calcSlope(cut,N):null,rv=cut.length>=N+1?calcVol(cut,N):null,rk=cut.length>=N?calcKbar(cut,N):null;
+var pn=mo[mIdx-1]?mo[mIdx-1].c:null;
+var r12=mIdx>=13&&mo[mIdx-13]?pn/mo[mIdx-13].c-1:null,r6=mIdx>=7&&mo[mIdx-7]?pn/mo[mIdx-7].c-1:null,r3=mIdx>=4&&mo[mIdx-4]?pn/mo[mIdx-4].c-1:null;
+RAW_SCORES[s.c][yyyymm]={rm:rm,rb:rb,rs:rs,rv:rv,rk:rk,r12:r12,r6:r6,r3:r3};
+}
+if(si%5===4)await new Promise(function(r){setTimeout(r,0);});
+}
+CACHE_BUILT=true;CACHE_TS=new Date().toISOString();hideL();updCacheSt();updTNX();
+}
+function updCacheSt(){
+var el=$(‘cacheTxt’);if(!el)return;
+if(!CACHE_BUILT){el.textContent=‘Cache: not built’;el.style.color=‘var(–mu)’;return;}
+var n=Object.keys(RAW_SCORES).length,dt=new Date(CACHE_TS).toLocaleTimeString(‘en’,{hour:‘2-digit’,minute:‘2-digit’});
+el.textContent=‘Cache OK (’+n+’ stocks, ‘+dt+’)’;el.style.color=‘var(–gr)’;
+}
+function crossZ(arr,cap){
+cap=cap||2;var vals=arr.filter(function(v){return v!==null&&!isNaN(v);});
+if(vals.length<3)return arr.map(function(v){return v===null?null:0;});
+var mean=vals.reduce(function(a,b){return a+b;},0)/vals.length;
+var std=Math.sqrt(vals.reduce(function(a,b){return a+(b-mean)*(b-mean);},0)/vals.length)||1;
+return arr.map(function(v){if(v===null)return null;return Math.max(-cap,Math.min(cap,(v-mean)/std));});
+}
+function getTNXRate(yyyymm){if(!TNX_MONTHLY.length)return 0.04;var best=null;TNX_MONTHLY.forEach(function(p){if(p.date<=yyyymm)best=p;});return best?(best.c/100):0.04;}
+function getHurdle(yyyymm){return Math.max(0,getTNXRate(yyyymm)+(gv(‘btSpread’)||0.5)/100);}
+function calcAllScores(yyyymm){
+var stocks=getEnabledStocks().filter(function(s){return RAW_SCORES[s.c]&&RAW_SCORES[s.c][yyyymm];});if(!stocks.length)return[];
+var wM=gv(‘wMom’)/100,wB=gv(‘wBias’)/100,wS=gv(‘wSlope’)/100,wV=gv(‘wVol’)/100,wK=gv(‘wKbar’)/100;
+var rMs=[],rBs=[],rSs=[],rVs=[],rKs=[];
+var infos=stocks.map(function(s){var raw=RAW_SCORES[s.c][yyyymm];rMs.push(raw.rm);rBs.push(raw.rb);rSs.push(raw.rs);rVs.push(raw.rv);rKs.push(raw.rk);return{s:s,raw:raw};});
+var zMs=crossZ(rMs,99),zBs=crossZ(rBs,2),zSs=crossZ(rSs,99),zVs=crossZ(rVs,2),zKs=crossZ(rKs,99);
+return infos.map(function(d,i){
+var zm=zMs[i],zb=zBs[i],zs=zSs[i],zv=zVs[i],zk=zKs[i],tw=0,tt=0;
+if(zm!==null){tw+=wM*zm;tt+=wM;}if(zb!==null){tw+=wB*zb;tt+=wB;}if(zs!==null){tw+=wS*zs;tt+=wS;}if(zv!==null){tw+=wV*zv;tt+=wV;}if(zk!==null){tw+=wK*zk;tt+=wK;}
+return{s:d.s,score:tt>0.1?tw/tt:null,zm:zm,zb:zb,zs:zs,zv:zv,zk:zk,r12:d.raw.r12,r6:d.raw.r6,r3:d.raw.r3};
+});
+}
+function calcCorr(c1,c2,yyyymm,n){
+n=n||12;var m1=MONTHLY[c1],m2=MONTHLY[c2];if(!m1||!m2)return 0;
+var i1=getMonthIdx(m1,yyyymm),i2=getMonthIdx(m2,yyyymm),mi=Math.min(i1,i2);if(mi<n+1)return 0;
+var r1=[],r2=[];
+for(var i=mi-n;i<mi;i++){var a0=m1[i-1]?m1[i-1].c:null,a1=m1[i]?m1[i].c:null,b0=m2[i-1]?m2[i-1].c:null,b1=m2[i]?m2[i].c:null;if(a0&&a1&&b0&&b1&&a0>0&&b0>0){r1.push(a1/a0-1);r2.push(b1/b0-1);}}
+if(r1.length<6)return 0;
+var m1a=r1.reduce(function(a,b){return a+b;},0)/r1.length,m2a=r2.reduce(function(a,b){return a+b;},0)/r2.length,num=0,d1=0,d2=0;
+r1.forEach(function(v,i){num+=(v-m1a)*(r2[i]-m2a);d1+=(v-m1a)*(v-m1a);d2+=(r2[i]-m2a)*(r2[i]-m2a);});
+return num/Math.sqrt((d1*d2)||1);
+}
+function calcSignal(){
+if(!CACHE_BUILT){alert(‘Fetch data first’);return;}
+var stocks=getEnabledStocks().filter(function(s){return RAW_SCORES[s.c];});if(!stocks.length){alert(‘No cached data’);return;}
+var mo=MONTHLY[stocks[0].c],yyyymm=mo[mo.length-1].date,hurdle=getHurdle(yyyymm);
+var scores=calcAllScores(yyyymm),valid=scores.filter(function(r){return r.score!==null;});
+valid.sort(function(a,b){return b.score-a.score;});
+var tsPass=valid.filter(function(r){return r.r12!==null&&r.r12>hurdle;});
+var ct=gv(‘corrT’)||0.75,mh=parseInt($(‘btH’)?$(‘btH’).value:‘3’)||3,sel=[];
+for(var i=0;i<tsPass.length&&sel.length<mh;i++){var cand=tsPass[i];if(sel.every(function(x){return Math.abs(calcCorr(cand.s.c,x.s.c,yyyymm))<ct;}))sel.push(cand);}
+renderSig(sel,valid.slice(-3).reverse(),valid,yyyymm,hurdle);
+}
+function renderSig(sel,wk,all,yyyymm,hurdle){
+var zf=function(v){return v!==null?(v>=0?’+’:’’)+v.toFixed(2):’-’;};
+var pf=function(v){return v!==null?(v>=0?’+’:’’)+(v*100).toFixed(1)+’%’:’-’;};
+var tnx=getTNXRate(yyyymm);
+var html=’<div style="font-size:11px;color:var(--mu);margin-bottom:9px">Month: <b style="color:var(--tw)">’+yyyymm+’</b> | ^TNX: <b style="color:var(--bl)">’+(tnx*100).toFixed(2)+’%</b> | Hurdle: <b style="color:var(--ye)">’+(hurdle*100).toFixed(2)+’%</b></div>’;
+html+=’<div style="font-size:12px;font-weight:700;color:var(--tw);margin-bottom:6px">Top ‘+sel.length+’</div><div class="sg">’;
+sel.forEach(function(r,rk){var isUs=!r.s.tw;var col=isUs?‘var(–us)’:‘var(–tw)’;var rbg=isUs?‘var(–usd)’:‘var(–twd)’;html+=’<div class="scard"><div class="shdr"><div><div class="scode" style="color:'+col+'">’+r.s.c+’</div><div class="sname">’+r.s.n+’</div></div><span class="srank" style="background:'+rbg+';color:'+col+';border:1px solid '+col+'">#’+(rk+1)+’</span></div><div class="sscore">’+(r.score>=0?’+’:’’)+r.score.toFixed(2)+’</div><div class="sbars">’;[[‘Mom’,r.zm,‘var(–tw)’],[‘Bias’,r.zb,‘var(–bl)’],[‘Slope’,r.zs,‘var(–te)’],[‘Vol’,r.zv,‘var(–ye)’],[‘Kbar’,r.zk,‘var(–ac)’]].forEach(function(b){if(b[1]===null)return;var w=Math.round(Math.min(100,Math.abs(b[1])*25));html+=’<div class="sbrow"><span style="width:32px">’+b[0]+’</span><div class="sbwrap"><div class="sbfill" style="width:'+w+'%;background:'+b[2]+'"></div></div><span style="width:36px;text-align:right;font-family:monospace">’+zf(b[1])+’</span></div>’;});html+=’</div><div style="margin-top:5px;font-size:10px;color:var(--mu);font-family:monospace">R12:’+pf(r.r12)+’ R6:’+pf(r.r6)+’ R3:’+pf(r.r3)+’</div></div>’;});
+html+=’</div>’;if(!sel.length)html+=’<div style="color:var(--ye);font-size:12px;margin-bottom:9px">No stocks pass TS - hold cash</div>’;
+html+=’<div style="font-size:12px;font-weight:700;color:var(--re);margin:9px 0 6px">Weakest 3</div><div class="sg">’;
+wk.forEach(function(r,rk){html+=’<div class="scard wk"><div class="shdr"><div><div class="scode">’+r.s.c+’</div><div class="sname">’+r.s.n+’</div></div><span class="srank">W’+(rk+1)+’</span></div><div class="sscore" style="color:var(--re)">’+(r.score>=0?’+’:’’)+r.score.toFixed(2)+’</div></div>’;});
+html+=’</div>’;$(‘sigContent’).innerHTML=html;renderST(all,hurdle);
+}
+function renderST(all,hurdle){
+$(‘stCard’).classList.remove(‘hidden’);
+var sorted=all.filter(function(r){return r.score!==null;}).sort(function(a,b){return b.score-a.score;});
+var zf=function(v){return v!==null?(v>=0?’+’:’’)+v.toFixed(2):’-’;};
+var pf=function(v){return v!==null?(v>=0?’+’:’’)+(v*100).toFixed(1)+’%’:’-’;};
+$(‘stBody’).innerHTML=sorted.map(function(r,i){var ts=r.r12!==null&&r.r12>hurdle;var isUs=!r.s.tw;return ‘<tr><td class="mono" style="color:var(--mu)">’+(i+1)+’</td><td class="mono" style="font-weight:700;color:'+(isUs?'var(--us)':'var(--tw)')+'">’+r.s.c+’</td><td>’+r.s.n+’</td><td style="font-size:10px;color:var(--mu)">-</td><td class="mono" style="font-weight:700;color:'+(r.score>=0?'var(--gr)':'var(--re)')+'">’+zf(r.score)+’</td><td class="mono">’+zf(r.zm)+’</td><td class="mono">’+zf(r.zb)+’</td><td class="mono">’+zf(r.zs)+’</td><td class="mono">’+zf(r.zv)+’</td><td class="mono">’+zf(r.zk)+’</td><td class="mono">’+pf(r.r12)+’</td><td class="mono">’+pf(r.r6)+’</td><td class="mono">’+pf(r.r3)+’</td><td>’+(ts?’<span style="color:var(--gr)">Y</span>’:’<span style="color:var(--re)">N</span>’)+’</td></tr>’;}).join(’’);
+}
+function runBTcore(mh,mode){
+var stocks=getEnabledStocks().filter(function(s){return RAW_SCORES[s.c];});if(stocks.length<3)return null;
+var refMo=MONTHLY[stocks[0].c],allM=refMo.map(function(p){return p.date;}).sort();
+var rawS=$(‘btS’)?($(‘btS’).value||’’).trim().slice(0,7):’’,rawE=$(‘btE’)?($(‘btE’).value||’’).trim().slice(0,7):’’;
+var MIN=14,cS=MIN;if(rawS){for(var i=MIN;i<allM.length;i++){if(allM[i]>=rawS){cS=i;break;}}}
+var cE=allM.length-2;if(rawE){for(var i2=allM.length-2;i2>=MIN;i2–){if(allM[i2]<=rawE){cE=i2;break;}}}
+if(cS>cE)return null;
+var INIT=gv(‘btCap’)||100000,COST=(gv(‘btC’)||0.3)/100,ct=gv(‘corrT’)||0.75;
+var nav=INIT,bNav=INIT,records=[],holdings={CASH:1.0};
+function getBench(m){if(!BENCH_MONTHLY.length)return null;var best=null;BENCH_MONTHLY.forEach(function(p){if(p.date<=m)best=p;});return best?best.c:null;}
+function getMo(code,m){var mo=MONTHLY[code];if(!mo)return null;var best=null;mo.forEach(function(p){if(p.date<=m)best=p;});return best?best.c:null;}
+for(var idx=cS;idx<=cE;idx++){
+var sigM=allM[idx],nextM=allM[idx+1];if(!nextM)break;
+var hurdle=getHurdle(sigM),sc2=calcAllScores(sigM),valid=sc2.filter(function(r){return r.score!==null;});
+valid.sort(function(a,b){return b.score-a.score;});var tsP=valid.filter(function(r){return r.r12!==null&&r.r12>hurdle;});
+var sel=[];for(var j=0;j<tsP.length&&sel.length<mh;j++){var cand=tsP[j];if(sel.every(function(x){return Math.abs(calcCorr(cand.s.c,x.s.c,sigM))<ct;}))sel.push(cand);}
+var newH=sel.length?calcWeights(sel,mode):{CASH:1.0};
+var allC=Object.keys(holdings).concat(Object.keys(newH)),seen2={};allC.forEach(function(c){seen2[c]=true;});
+var tv=0;Object.keys(seen2).forEach(function(c){tv+=Math.abs((newH[c]||0)-(holdings[c]||0));});
+var pRet=0,cr=getTNXRate(sigM),stockRets={};
+Object.keys(holdings).forEach(function(c){var wt=holdings[c];if(c===‘CASH’){pRet+=wt*(cr/12);stockRets.CASH={ret:cr/12,w:wt};return;}var p0=getMo(c,sigM),p1=getMo(c,nextM);if(p0&&p1&&p0>0){var ret=p1/p0-1;pRet+=wt*ret;stockRets[c]={ret:ret,w:wt};}});
+pRet-=(tv/2)*COST;nav*=(1+pRet);var b0=getBench(sigM),b1=getBench(nextM);if(b0&&b1&&b0>0)bNav*=(1+b1/b0-1);
+var hCopy={};Object.keys(newH).forEach(function(k){hCopy[k]=newH[k];});
+records.push({month:nextM,nav:nav,bNav:bNav,holdings:hCopy,pRet:pRet,hurdle:hurdle,stockRets:stockRets});holdings=newH;
+}
+return records.length>=6?records:null;
+}
+function kpi(records,init){
+var last=records[records.length-1],yrs=(new Date(last.month+’-01’)-new Date(records[0].month+’-01’))/(365.25*86400000);
+var tr=last.nav/init-1,cagr=yrs>0?Math.pow(1+Math.max(tr,-0.999),1/yrs)-1:0,pk=init,mdd=0;
+records.forEach(function(r){if(r.nav>pk)pk=r.nav;var dd=(r.nav-pk)/pk;if(dd<mdd)mdd=dd;});
+var rets=records.map(function(r){return r.pRet;}),avg=rets.reduce(function(a,b){return a+b;},0)/rets.length;
+var std=Math.sqrt(rets.reduce(function(a,b){return a+(b-avg)*(b-avg);},0)/rets.length)*Math.sqrt(12)||1;
+return{cagr:cagr,mdd:mdd,sharpe:(cagr-0.015)/std,nav:last.nav};
+}
+function runBT(){
+if(!CACHE_BUILT){alert(‘Fetch data first’);return;}
+sl(‘btLog’,‘Calculating…’,null);showL(‘Backtesting…’);
+setTimeout(function(){
+try{var mh=parseInt($(‘btH’)?$(‘btH’).value:‘3’)||3,mode=getWeightMode(),init=gv(‘btCap’)||100000,records=runBTcore(mh,mode);if(!records){alert(‘Not enough data’);hideL();return;}BT_RESULT={records:records,initial:init,mode:mode,mh:mh};renderBT(records,init,mode);sl(‘btLog’,‘Done: ‘+records.length+’ months (’+records[0].month+’ - ‘+records[records.length-1].month+’)’,true);}
+catch(err){sl(‘btLog’,‘Error: ‘+err.message,false);console.error(err);}finally{hideL();}
+},80);
+}
+function runCompare(){
+if(!CACHE_BUILT){alert(‘Fetch data first’);return;}
+var maxN=parseInt($(‘btH’)?$(‘btH’).value:‘5’)||5,mode=getWeightMode();
+sl(‘btLog’,‘Comparing N=1 to ‘+maxN+’…’,null);showL(‘Comparing…’);
+setTimeout(function(){
+try{var init=gv(‘btCap’)||100000,results=[];for(var n=1;n<=maxN;n++){var recs=runBTcore(n,mode);if(recs)results.push({n:n,recs:recs,k:kpi(recs,init)});}if(!results.length){alert(‘No results’);hideL();return;}renderCompare(results,init,mode);sl(‘btLog’,‘Compare done: N=1~’+maxN+’ (’+mode+’)’,true);}
+catch(err){sl(‘btLog’,‘Error: ‘+err.message,false);console.error(err);}finally{hideL();}
+},80);
+}
+var CMP_COLORS=[’#ff6b9d’,’#a78bfa’,’#00d4aa’,’#ffb830’,’#4d9fff’,’#00e5a0’,’#ff4d6d’,’#7eb8ff’,’#ffb830’,’#00e5a0’];
+function renderCompare(results,init,mode){
+$(‘btRes’).classList.remove(‘hidden’);
+var fmt=function(v,p,pl){return(pl&&v>=0?’+’:’’)+(p?(v*100).toFixed(2)+’%’:v.toFixed(2));};
+var html=’<div class="tw-wrap" style="margin-bottom:10px"><table><thead><tr><th>N</th><th>Weight</th><th>CAGR</th><th>MDD</th><th>Sharpe</th><th>Final NAV</th></tr></thead><tbody>’;
+results.forEach(function(res,i){var k=res.k;html+=’<tr><td class="mono" style="font-weight:700;color:'+CMP_COLORS[i%CMP_COLORS.length]+'">’+res.n+’</td><td style="font-size:10px;color:var(--mu)">’+(mode===‘rank’?‘Rank’:‘Equal’)+’</td><td class="mono" style="color:'+(k.cagr>=0?'var(--gr)':'var(--re)')+'">’+fmt(k.cagr,true,true)+’</td><td class="mono" style="color:var(--re)">’+fmt(k.mdd,true)+’</td><td class="mono" style="color:'+(k.sharpe>=1?'var(--gr)':k.sharpe>=0?'var(--ye)':'var(--re)')+'">’+k.sharpe.toFixed(2)+’</td><td class="mono" style="color:var(--wh)">$’+Math.round(k.nav).toLocaleString()+’</td></tr>’;});
+html+=’</tbody></table></div>’;$(‘btMetrics’).innerHTML=html;$(‘chartArea’).style.display=‘block’;$(‘btnChart’).textContent=‘Hide Charts’;
+if(CHART.n)CHART.n.destroy();if(CHART.d){CHART.d.destroy();CHART.d=null;}
+var labels=results[0].recs.map(function(r){return r.month;}),datasets=results.map(function(res,i){return{label:‘N=’+res.n,data:res.recs.map(function(r){return r.nav;}),borderColor:CMP_COLORS[i%CMP_COLORS.length],borderWidth:2,pointRadius:0};});
+datasets.push({label:‘TAIEX’,data:results[0].recs.map(function(r){return r.bNav;}),borderColor:’#3d4a66’,borderWidth:1,pointRadius:0});
+var sc={x:{ticks:{color:’#6b7a99’,maxTicksLimit:12},grid:{color:’#1a2030’}},y:{ticks:{color:’#6b7a99’},grid:{color:’#1a2030’}}};
+var opt={responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:‘index’},animation:{duration:200},plugins:{legend:{labels:{color:’#6b7a99’,boxWidth:10,font:{size:11}}}}};
+CHART.n=new Chart($(‘navC’).getContext(‘2d’),{type:‘line’,data:{labels:labels,datasets:datasets},options:Object.assign({},opt,{scales:Object.assign({},sc,{y:Object.assign({},sc.y,{type:‘logarithmic’})})})});
+$(‘btBody’).innerHTML=’<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:12px;font-size:12px">Run single backtest to see monthly holdings detail.</td></tr>’;
+}
+function renderBT(records,init,mode){
+var recs=records;$(‘btRes’).classList.remove(‘hidden’);
+var last=recs[recs.length-1],yrs=(new Date(last.month+’-01’)-new Date(recs[0].month+’-01’))/(365.25*86400000);
+var tr=last.nav/init-1,cagr=yrs>0?Math.pow(1+Math.max(tr,-0.999),1/yrs)-1:0;
+var btr=last.bNav/init-1,bcagr=yrs>0?Math.pow(1+Math.max(btr,-0.999),1/yrs)-1:0;
+var pk=init,mdd=0;recs.forEach(function(r){if(r.nav>pk)pk=r.nav;var dd=(r.nav-pk)/pk;if(dd<mdd)mdd=dd;});
+var rets=recs.map(function(r){return r.pRet;}),avg=rets.reduce(function(a,b){return a+b;},0)/rets.length;
+var std=Math.sqrt(rets.reduce(function(a,b){return a+(b-avg)*(b-avg);},0)/rets.length)*Math.sqrt(12)||1,sh=(cagr-0.015)/std;
+var fmt=function(v,p,pl){return(pl&&v>=0?’+’:’’)+(p?(v*100).toFixed(2)+’%’:v.toFixed(2));};
+var modeLabel=mode===‘rank’?‘Rank-Weighted’:‘Equal-Weighted’;
+$(‘btMetrics’).innerHTML=’<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="card" style="border-top:3px solid var(--tw)"><div class="ct">Strategy (’+modeLabel+’)</div><div class="mr"><span>Final NAV</span><span class="mv wh">$’+Math.round(last.nav).toLocaleString()+’</span></div><div class="mr"><span>Return</span><span class="mv '+(tr>=0?'tg':'tr')+'">’+fmt(tr,true,true)+’</span></div><div class="mr"><span>CAGR</span><span class="mv">’+fmt(cagr,true)+’</span></div><div class="mr"><span>MDD</span><span class="mv tr">’+fmt(mdd,true)+’</span></div><div class="mr"><span>Sharpe</span><span class="mv tg">’+sh.toFixed(2)+’</span></div></div><div class="card" style="border-top:3px solid var(--mu)"><div class="ct">TAIEX B&H</div><div class="mr"><span>Return</span><span class="mv '+(btr>=0?'tg':'tr')+'">’+fmt(btr,true,true)+’</span></div><div class="mr"><span>CAGR</span><span class="mv">’+fmt(bcagr,true)+’</span></div><div class="mr"><span>Alpha</span><span class="mv '+((cagr-bcagr)>=0?'tg':'tr')+'">’+fmt(cagr-bcagr,true,true)+’</span></div></div></div>’;
+if(CHART.n)CHART.n.destroy();if(CHART.d)CHART.d.destroy();
+var labels=recs.map(function(r){return r.month;});
+var sc={x:{ticks:{color:’#6b7a99’,maxTicksLimit:12},grid:{color:’#1a2030’}},y:{ticks:{color:’#6b7a99’},grid:{color:’#1a2030’}}};
+var opt={responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:‘index’},animation:{duration:200},plugins:{legend:{labels:{color:’#6b7a99’,boxWidth:10,font:{size:11}}}}};
+CHART.n=new Chart($(‘navC’).getContext(‘2d’),{type:‘line’,data:{labels:labels,datasets:[{label:‘Strategy’,data:recs.map(function(r){return r.nav;}),borderColor:’#ff6b9d’,borderWidth:2.5,pointRadius:0},{label:‘TAIEX’,data:recs.map(function(r){return r.bNav;}),borderColor:’#3d4a66’,borderWidth:1,pointRadius:0}]},options:Object.assign({},opt,{scales:Object.assign({},sc,{y:Object.assign({},sc.y,{type:‘logarithmic’})})})});
+var mddData=[],pk2=init;recs.forEach(function(r){if(r.nav>pk2)pk2=r.nav;mddData.push((r.nav-pk2)/pk2*100);});
+CHART.d=new Chart($(‘ddC’).getContext(‘2d’),{type:‘line’,data:{labels:labels,datasets:[{label:‘MDD’,data:mddData,borderColor:’#ff6b9d’,borderWidth:1,pointRadius:0,fill:true,backgroundColor:‘rgba(255,107,157,0.08)’}]},options:Object.assign({},opt,{plugins:{legend:{display:false}},scales:sc})});
+$(‘btBody’).innerHTML=recs.slice().reverse().map(function(r,ri){
+var idx2=recs.length-1-ri,pb=idx2>0?recs[idx2-1].bNav:init,prevNav=idx2>0?recs[idx2-1].nav:init;
+var bRet=r.bNav/pb-1,ex=r.pRet-bRet,rc=r.pRet>=0?‘var(–gr)’:‘var(–re)’,ec=ex>=0?‘var(–gr)’:‘var(–re)’;
+var holdStr=Object.keys(r.holdings).map(function(k){var wt=r.holdings[k];var isUs=!!(document.querySelector(’[data-code=”’+k+’”][data-tw=“0”]’));var col=isUs?‘var(–us)’:‘var(–tw)’;var bg=isUs?‘var(–usd)’:‘var(–twd)’;var nm=getStockName(k);return ‘<span style="background:'+bg+';color:'+col+';border:1px solid '+col+';padding:1px 6px;border-radius:3px;font-size:10px;font-family:monospace;margin:1px">’+k+(nm&&nm!==k?’ ‘+nm:’’)+(wt<0.99?’ ’+(wt*100).toFixed(0)+’%’:’’)+’</span>’;}).join(’’);
+var summaryRow=’<tr style="border-top:2px solid var(--bd)"><td class="mono" style="font-weight:700;vertical-align:top">’+r.month+’</td><td style="vertical-align:top">’+holdStr+’</td><td class="mono" style="font-size:10px;color:var(--bl);vertical-align:top">’+(r.hurdle*100).toFixed(1)+’%</td><td class="mono" style="color:'+rc+';font-weight:700;vertical-align:top">’+(r.pRet>=0?’+’:’’)+(r.pRet*100).toFixed(2)+’%</td><td class="mono" style="color:var(--tw);font-weight:700;vertical-align:top">$’+Math.round(r.nav).toLocaleString()+’</td><td class="mono" style="color:var(--mu);vertical-align:top">$’+Math.round(r.bNav).toLocaleString()+’</td><td class="mono" style="color:'+ec+';font-weight:700;vertical-align:top">’+(ex>=0?’+’:’’)+(ex*100).toFixed(2)+‘pp</td></tr>’;
+var detailRows=’’;
+if(r.stockRets){Object.keys(r.stockRets).forEach(function(k){var sr=r.stockRets[k],ret=sr.ret,w=sr.w||0,contrib=ret*w,pnl=prevNav*contrib;var isUs=!!(document.querySelector(’[data-code=”’+k+’”][data-tw=“0”]’));var col=isUs?‘var(–us)’:‘var(–tw)’,rc2=ret>=0?‘var(–gr)’:‘var(–re)’,nm=getStockName(k);detailRows+=’<tr style="background:var(--bg);opacity:0.85"><td style="padding:3px 8px;border-bottom:1px solid var(--bd)"></td><td style="padding:3px 8px;border-bottom:1px solid var(--bd);font-family:monospace;font-size:11px;color:'+col+'">’+k+(nm&&nm!==k?’ <span style="color:var(--mu);font-size:10px">’+nm+’</span>’:’’)+(w>0?’ <span style="color:var(--mu);font-size:10px">’+(w*100).toFixed(0)+’%</span>’:’’)+’</td><td style="padding:3px 8px;border-bottom:1px solid var(--bd)"></td><td class="mono" style="padding:3px 8px;border-bottom:1px solid var(--bd);font-size:11px;color:'+rc2+'">’+(ret>=0?’+’:’’)+(ret*100).toFixed(2)+’%</td><td class="mono" style="padding:3px 8px;border-bottom:1px solid var(--bd);font-size:11px;color:'+rc2+'">’+(pnl>=0?’+$’:’-$’)+Math.abs(Math.round(pnl)).toLocaleString()+’</td><td colspan="2" style="padding:3px 8px;border-bottom:1px solid var(--bd);font-size:10px;color:var(--mu)">contrib: ‘+(contrib>=0?’+’:’’)+(contrib*100).toFixed(2)+’%</td></tr>’;});}
+return summaryRow+detailRows;
+}).join(’’);
+}
+function toggleCharts(btn){var area=$(‘chartArea’);if(!area)return;var hidden=area.style.display===‘none’;area.style.display=hidden?‘block’:‘none’;btn.textContent=hidden?‘Hide Charts’:‘Show Charts (NAV / MDD)’;if(hidden&&CHART.n){CHART.n.resize();if(CHART.d)CHART.d.resize();}}
+function dlJson(){if(!Object.keys(MONTHLY).length){sl(‘dlLog’,‘No data’,false);return;}var obj={ts:new Date().toISOString(),WEEKLY:WEEKLY,MONTHLY:MONTHLY,DAILY:DAILY,BENCH_MONTHLY:BENCH_MONTHLY,TNX_MONTHLY:TNX_MONTHLY};dlBlob(new Blob([JSON.stringify(obj)],{type:‘application/json’}),‘tw_momentum_’+new Date().toISOString().slice(0,10)+’.json’);sl(‘dlLog’,‘JSON downloaded’,true);}
+function dlOHLCV(){var rows=[‘type,code,date,high,low,close,volume’];Object.keys(WEEKLY).forEach(function(k){WEEKLY[k].forEach(function(w){rows.push(‘W,’+k+’,’+w.date+’,’+w.h+’,’+w.l+’,’+w.c+’,’+w.v);});});Object.keys(DAILY).forEach(function(k){DAILY[k].forEach(function(w){rows.push(‘D,’+k+’,’+w.date+’,’+w.h+’,’+w.l+’,’+w.c+’,’+w.v);});});dlText(rows.join(’\n’),‘tw_ohlcv_’+new Date().toISOString().slice(0,10)+’.csv’,‘text/csv;charset=utf-8’);sl(‘dlLog’,‘OHLCV CSV downloaded’,true);}
+function dlMonthly(){var rows=[‘code,date,close’];Object.keys(MONTHLY).forEach(function(k){MONTHLY[k].forEach(function(m){rows.push(k+’,’+m.date+’,’+m.c);});});BENCH_MONTHLY.forEach(function(m){rows.push(’^TWII,’+m.date+’,’+m.c);});TNX_MONTHLY.forEach(function(m){rows.push(’^TNX,’+m.date+’,’+m.c);});dlText(rows.join(’\n’),‘tw_monthly_’+new Date().toISOString().slice(0,10)+’.csv’,‘text/csv;charset=utf-8’);sl(‘dlLog’,‘Monthly CSV downloaded’,true);}
+async function upJson(el){
+var file=el.files[0];if(!file)return;sl(‘dlLog’,‘Loading ‘+file.name+’…’,null);
+try{var text=await file.text();var obj=JSON.parse(text);if(!obj.MONTHLY){sl(‘dlLog’,‘Error: no MONTHLY field’,false);return;}WEEKLY=obj.WEEKLY||{};MONTHLY=obj.MONTHLY||{};DAILY=obj.DAILY||{};BENCH_MONTHLY=obj.BENCH_MONTHLY||[];TNX_MONTHLY=obj.TNX_MONTHLY||[];updFetchStat();updTNX();await buildCache();sl(‘dlLog’,‘Loaded! Ready to calculate.’,true);}
+catch(err){sl(‘dlLog’,‘Error: ‘+err.message,false);}el.value=’’;
+}
+function dlBtCsv(){
+if(!BT_RESULT){sl(‘btLog’,‘Run backtest first’,false);return;}
+var recs=BT_RESULT.records,init=BT_RESULT.initial,rows=[‘month,holdings,hurdle%,return%,nav,taiex,alpha%’];
+recs.forEach(function(r,i){var pb=i>0?recs[i-1].bNav:init;var ex=r.pRet-(r.bNav/pb-1);var hold=Object.keys(r.holdings).map(function(k){var nm=getStockName(k);return k+(nm&&nm!==k?’(’+nm+’)’:’’)+(r.holdings[k]<0.99?’ ‘+(r.holdings[k]*100).toFixed(0)+’%’:’’);}).join(’+’);rows.push([r.month,hold,(r.hurdle*100).toFixed(2),(r.pRet*100).toFixed(3),Math.round(r.nav),Math.round(r.bNav),(ex*100).toFixed(3)].join(’,’));});
+dlText(rows.join(’\n’),‘tw_backtest_’+new Date().toISOString().slice(0,10)+’.csv’,‘text/csv;charset=utf-8’);
+}
+</script>
+
+</body>
+</html>
