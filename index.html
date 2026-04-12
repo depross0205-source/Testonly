@@ -2868,20 +2868,21 @@ function renderPoolCompare(partA, partB, twRange, usRange, init, minTY, testWY, 
 // ---- VAR SCAN ENGINE ----
 
 var SCAN_RANGES = {
-  ct:          { min: 0.5,  max: 0.95, step: 0.05, label: 'Corr Threshold ct' },
-  spread:      { min: 0.0,  max: 2.0,  step: 0.25, label: 'TNX Spread (%)' },
-  consistMult: { min: 1.0,  max: 1.5,  step: 0.1,  label: 'Mom Consistency Mult' },
-  corrWin:     { min: 12,   max: 36,   step: 6,    label: 'Corr Window (months)' },
-  nTrend:      { min: 30,   max: 90,   step: 15,   label: 'N_TREND (MA period)' },
-  z240w:       { min: 0.3,  max: 0.7,  step: 0.1,  label: 'Mom Weight z240' },
-  z120w:       { min: 0.1,  max: 0.5,  step: 0.1,  label: 'Mom Weight z120' },
-  wMom:        { min: 0.3,  max: 0.9,  step: 0.1,  label: 'Factor wMom (%)' },
-  wKbar:       { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wKbar (%)' },
-  wBias:       { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wBias (%)' },
-  wSlope:      { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wSlope (%)' },
-  wVol:        { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wVol (%)' },
-  regimeExp:   { min: 0,    max: 100,  step: 20,   label: 'Regime Exposure (%)' }
+  ct:          { min: 0.5,  max: 0.95, step: 0.05, label: 'Corr Threshold ct',       needCache: false },
+  spread:      { min: 0.0,  max: 2.0,  step: 0.25, label: 'TNX Spread (%)',           needCache: false },
+  consistMult: { min: 1.0,  max: 1.5,  step: 0.1,  label: 'Mom Consistency Mult',    needCache: true  },
+  corrWin:     { min: 12,   max: 36,   step: 6,    label: 'Corr Window (months)',     needCache: false },
+  nTrend:      { min: 30,   max: 90,   step: 15,   label: 'N_TREND (MA period)',      needCache: true  },
+  z240w:       { min: 0.3,  max: 0.7,  step: 0.1,  label: 'Mom Weight z240',         needCache: true  },
+  z120w:       { min: 0.1,  max: 0.5,  step: 0.1,  label: 'Mom Weight z120',         needCache: true  },
+  wMom:        { min: 10,   max: 90,   step: 10,   label: 'Factor wMom (0~100)',      needCache: false },
+  wKbar:       { min: 0,    max: 30,   step: 5,    label: 'Factor wKbar (0~100)',     needCache: false },
+  wBias:       { min: 0,    max: 30,   step: 5,    label: 'Factor wBias (0~100)',     needCache: false },
+  wSlope:      { min: 0,    max: 30,   step: 5,    label: 'Factor wSlope (0~100)',    needCache: false },
+  wVol:        { min: 0,    max: 30,   step: 5,    label: 'Factor wVol (0~100)',      needCache: false },
+  regimeExp:   { min: 0,    max: 100,  step: 20,   label: 'Regime Exposure (%)',      needCache: false }
 };
+
 
 function updateScanRange() {
   var v = document.getElementById('scanVar').value;
@@ -3021,17 +3022,26 @@ async function runVarScan() {
   var results = [];
   sl('stressLog', 'Scanning ' + label + ' (' + steps.length + ' steps)...', null);
   showL('Scanning: ' + label);
+    var needCache = SCAN_RANGES[varKey] && SCAN_RANGES[varKey].needCache;
+  if (needCache) {
+    sl('stressLog', 'Cache-dependent var -- rebuilding cache each step (slower)...', null);
+  }
   try {
     for (var si = 0; si < steps.length; si++) {
       var sv = steps[si];
       $('loadTxt').textContent = label + ' = ' + sv + ' (' + (si+1) + '/' + steps.length + ')';
       applyScanVar(varKey, sv);
-      await new Promise(function(r) { setTimeout(r, 0); });
+      if (needCache) {
+        await buildCache();
+      } else {
+        await new Promise(function(r) { setTimeout(r, 0); });
+      }
       results.push({ val: sv, res: doWFLoop(minTY, testWY, init, mh, wtMode) });
     }
   } catch(e) {
     sl('stressLog', 'Error: ' + e.message, false);
   }
+
   restoreScanVar(varKey, orig);
   sl('stressLog', 'Scan done: ' + label, true);
   renderVarScan(results, label, varKey);
