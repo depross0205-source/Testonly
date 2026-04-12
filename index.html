@@ -626,6 +626,34 @@ tr:hover{background:var(--sf2)}
     <button class="bo" onclick="runWalkForward()" style="width:100%;margin-top:6px;color:var(--ye);border-color:var(--ye)">&#x25B6; Walk-Forward Analysis (Anchored)</button>
         <button class="bo" onclick="runWFNCompare()" style="width:100%;margin-top:6px;color:var(--ac);border-color:var(--ac)">&#x25B6; WF N&#x6BD4;&#x8F03; (N=2~15)</button>
     <button class="bo" onclick="runPoolCompare()" style="width:100%;margin-top:6px;color:var(--bl);border-color:var(--bl)">&#x25B6; Pool Compare A+B (&#x7D04;30~60&#x79D2;)</button>
+    <div style="border-top:1px solid var(--bd);margin-top:12px;padding-top:10px">
+  <div class="ct2">&#x55AE;&#x8B8A;&#x6578; WF &#x6383;&#x63CF;</div>
+  <div class="fi" style="margin-bottom:8px">
+    <label>&#x63A1;&#x63CF;&#x8B8A;&#x6578;</label>
+    <select id="scanVar" onchange="updateScanRange()">
+      <option value="ct">&#x76F8;&#x95DC;&#x6027;&#x9580;&#x6ABB; ct</option>
+      <option value="spread">TNX Spread (%)</option>
+      <option value="consistMult">&#x52D5;&#x80FD;&#x4E00;&#x81F4;&#x6027;&#x4E58;&#x6578;</option>
+      <option value="corrWin">&#x76F8;&#x95DC;&#x6027;&#x7A97;&#x53E3; (&#x6708;)</option>
+      <option value="nTrend">N_TREND MA&#x9031;&#x671F;</option>
+      <option value="z240w">&#x52D5;&#x80FD;&#x6B0A;&#x91CD; z240</option>
+      <option value="z120w">&#x52D5;&#x80FD;&#x6B0A;&#x91CD; z120</option>
+      <option value="wMom">&#x56E0;&#x5B50;&#x6B0A; wMom</option>
+      <option value="wKbar">&#x56E0;&#x5B50;&#x6B0A; wKbar</option>
+      <option value="wBias">&#x56E0;&#x5B50;&#x6B0A; wBias</option>
+      <option value="wSlope">&#x56E0;&#x5B50;&#x6B0A; wSlope</option>
+      <option value="wVol">&#x56E0;&#x5B50;&#x6B0A; wVol</option>
+      <option value="regimeExp">Regime &#x66DD;&#x5149;&#x5EA6; (%)</option>
+    </select>
+  </div>
+  <div class="g3" style="margin-bottom:8px">
+    <div class="fi"><label>&#x6700;&#x5C0F;&#x5024;</label><input type="number" id="scanMin" value="0.5" step="0.05"></div>
+    <div class="fi"><label>&#x6700;&#x5927;&#x5024;</label><input type="number" id="scanMax" value="0.95" step="0.05"></div>
+    <div class="fi"><label>&#x6B65;&#x8DDD;</label><input type="number" id="scanStep" value="0.05" step="0.01"></div>
+  </div>
+  <button class="bo" onclick="runVarScan()" style="width:100%;color:var(--ac);border-color:var(--ac)">&#x25B6; &#x55AE;&#x8B8A;&#x6578; WF &#x6383;&#x63CF;</button>
+</div>
+
 
     <div class="log" id="stressLog"></div>
 
@@ -791,7 +819,10 @@ function togglePoolUI() {
 
    var WEEKLY={},MONTHLY={},DAILY={},BENCH_MONTHLY=[],TNX_MONTHLY=[];
 var RAW_SCORES={},BT_RESULT=null,CHART={},CACHE_BUILT=false,CACHE_TS=null,SKIP_MO=false,CACHE_SKIP_MO=false,CORR_WIN=24;
-var N_TREND=60; const MOM_CONSISTENCY_MULT=1.2; var REBAL_FREQ="1";
+var N_TREND=60; var MOM_CONSISTENCY_MULT=1.2; var REBAL_FREQ="1";
+var Z_W240=0.5, Z_W120=0.3, Z_W60=0.2;
+var CORR_T=0.75;
+
 
 const DB_NAME='FearlessConsoleDB', DB_VERSION=1;
 function initDB(){return new Promise((resolve,reject)=>{const request=indexedDB.open(DB_NAME,DB_VERSION);request.onupgradeneeded=(e)=>{const db=e.target.result;if(!db.objectStoreNames.contains('stockData'))db.createObjectStore('stockData',{keyPath:'id'});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
@@ -1112,7 +1143,8 @@ function rawMom(daily, idx) {
   if (idx < 240) return null;
   let z240 = momZ(daily, idx, 240), z120 = momZ(daily, idx, 120), z60 = momZ(daily, idx, 60);
   if (z240 === null || z120 === null || z60 === null) return null;
-  let score = 0.5 * z240 + 0.3 * z120 + 0.2 * z60;
+    let score = Z_W240 * z240 + Z_W120 * z120 + Z_W60 * z60;
+
   if (z240 > 0 && z120 > 0 && z60 > 0) score *= MOM_CONSISTENCY_MULT;
   return score;
 }
@@ -1304,7 +1336,8 @@ function runBTcore(mh, mode) {
   }
   if (cS > cE) return null;
 
-  var INIT = gv('btCap') || 100000, COST = (gv('btC') || 0.3) / 100, ct = gv('corrT') || 0.75;
+    var INIT = gv('btCap') || 100000, COST = (gv('btC') || 0.3) / 100, ct = CORR_T;
+
   var shortN = parseInt($('btSN') ? $('btSN').value : '0') || 0;
   var capMode = document.querySelector('input[name="capMode"]:checked') ? document.querySelector('input[name="capMode"]:checked').value : 'neutral';
   var wtModeEl = document.querySelector('input[name="wtMode"]:checked');
@@ -1886,7 +1919,8 @@ async function calcSignal() {
   var latestDate = Object.keys(RAW_SCORES[stocks[0].c]).sort().pop();
   var hurdle = getHurdle(latestDate);
   var allScores = calcAllScores(latestDate);
-  const mode = $('poolMode').value, useMA = $('ma60Filter').value === 'on', ct = gv('corrT') || 0.75;
+    const mode = $('poolMode').value, useMA = $('ma60Filter').value === 'on', ct = CORR_T;
+
   var sel = [], rejectedMap = {}; 
 
     allScores.forEach(function(r) {
@@ -2830,6 +2864,261 @@ function renderPoolCompare(partA, partB, twRange, usRange, init, minTY, testWY, 
   $('stressRes').classList.remove('hidden');
   var el = $('stressMetrics');
   if (el) el.innerHTML = el.innerHTML + html;
+}
+// ---- VAR SCAN ENGINE ----
+
+var SCAN_RANGES = {
+  ct:          { min: 0.5,  max: 0.95, step: 0.05, label: 'Corr Threshold ct' },
+  spread:      { min: 0.0,  max: 2.0,  step: 0.25, label: 'TNX Spread (%)' },
+  consistMult: { min: 1.0,  max: 1.5,  step: 0.1,  label: 'Mom Consistency Mult' },
+  corrWin:     { min: 12,   max: 36,   step: 6,    label: 'Corr Window (months)' },
+  nTrend:      { min: 30,   max: 90,   step: 15,   label: 'N_TREND (MA period)' },
+  z240w:       { min: 0.3,  max: 0.7,  step: 0.1,  label: 'Mom Weight z240' },
+  z120w:       { min: 0.1,  max: 0.5,  step: 0.1,  label: 'Mom Weight z120' },
+  wMom:        { min: 0.3,  max: 0.9,  step: 0.1,  label: 'Factor wMom (%)' },
+  wKbar:       { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wKbar (%)' },
+  wBias:       { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wBias (%)' },
+  wSlope:      { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wSlope (%)' },
+  wVol:        { min: 0.0,  max: 0.3,  step: 0.05, label: 'Factor wVol (%)' },
+  regimeExp:   { min: 0,    max: 100,  step: 20,   label: 'Regime Exposure (%)' }
+};
+
+function updateScanRange() {
+  var v = document.getElementById('scanVar').value;
+  var d = SCAN_RANGES[v];
+  if (!d) return;
+  document.getElementById('scanMin').value = d.min;
+  document.getElementById('scanMax').value = d.max;
+  document.getElementById('scanStep').value = d.step;
+}
+
+function saveScanVar(varKey) {
+  switch (varKey) {
+    case 'ct':          return CORR_T;
+    case 'spread':      return $('btSpread') ? parseFloat($('btSpread').value) || 0.5 : 0.5;
+    case 'consistMult': return MOM_CONSISTENCY_MULT;
+    case 'corrWin':     return CORR_WIN;
+    case 'nTrend':      return N_TREND;
+    case 'z240w':
+    case 'z120w':       return { z240: Z_W240, z120: Z_W120, z60: Z_W60 };
+    case 'wMom':        return $('wMom')   ? parseFloat($('wMom').value)   || 50 : 50;
+    case 'wKbar':       return $('wKbar')  ? parseFloat($('wKbar').value)  || 10 : 10;
+    case 'wBias':       return $('wBias')  ? parseFloat($('wBias').value)  || 10 : 10;
+    case 'wSlope':      return $('wSlope') ? parseFloat($('wSlope').value) || 10 : 10;
+    case 'wVol':        return $('wVol')   ? parseFloat($('wVol').value)   || 10 : 10;
+    case 'regimeExp':   return $('btRegimeExp') ? parseFloat($('btRegimeExp').value) || 50 : 50;
+  }
+  return null;
+}
+
+function restoreScanVar(varKey, orig) {
+  switch (varKey) {
+    case 'ct':          CORR_T = orig; break;
+    case 'spread':      if ($('btSpread')) $('btSpread').value = orig; break;
+    case 'consistMult': MOM_CONSISTENCY_MULT = orig; break;
+    case 'corrWin':     CORR_WIN = orig; break;
+    case 'nTrend':      N_TREND = orig; break;
+    case 'z240w':
+    case 'z120w':       Z_W240 = orig.z240; Z_W120 = orig.z120; Z_W60 = orig.z60; break;
+    case 'wMom':        if ($('wMom'))   $('wMom').value   = orig; break;
+    case 'wKbar':       if ($('wKbar'))  $('wKbar').value  = orig; break;
+    case 'wBias':       if ($('wBias'))  $('wBias').value  = orig; break;
+    case 'wSlope':      if ($('wSlope')) $('wSlope').value = orig; break;
+    case 'wVol':        if ($('wVol'))   $('wVol').value   = orig; break;
+    case 'regimeExp':   if ($('btRegimeExp')) $('btRegimeExp').value = orig; break;
+  }
+}
+
+function applyScanVar(varKey, val) {
+  switch (varKey) {
+    case 'ct':          CORR_T = val; break;
+    case 'spread':      if ($('btSpread')) $('btSpread').value = val; break;
+    case 'consistMult': MOM_CONSISTENCY_MULT = val; break;
+    case 'corrWin':     CORR_WIN = Math.round(val); break;
+    case 'nTrend':      N_TREND = Math.round(val); break;
+    case 'z240w': {
+      var rem = parseFloat((1 - val).toFixed(6));
+      Z_W240 = val;
+      Z_W120 = parseFloat((rem * 0.6).toFixed(6));
+      Z_W60  = parseFloat((rem * 0.4).toFixed(6));
+      break;
+    }
+    case 'z120w': {
+      var rem2 = parseFloat((1 - Z_W240 - val).toFixed(6));
+      Z_W120 = val;
+      Z_W60  = Math.max(0, rem2);
+      break;
+    }
+    case 'wMom':   if ($('wMom'))   $('wMom').value   = val; break;
+    case 'wKbar':  if ($('wKbar'))  $('wKbar').value  = val; break;
+    case 'wBias':  if ($('wBias'))  $('wBias').value  = val; break;
+    case 'wSlope': if ($('wSlope')) $('wSlope').value = val; break;
+    case 'wVol':   if ($('wVol'))   $('wVol').value   = val; break;
+    case 'regimeExp': if ($('btRegimeExp')) $('btRegimeExp').value = val; break;
+  }
+}
+
+function doWFLoop(minTY, testWY, init, mh, mode) {
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['SPY'] ? 'SPY' : null);
+  if (!masterTicker) return null;
+  var refDaily = DAILY[masterTicker];
+  var freq = $('btFreq') ? $('btFreq').value : '1';
+  var allM = getPreciseRebalanceDates(refDaily, freq);
+  if (!allM.length) return null;
+  var firstYear = parseInt(allM[0].slice(0,4));
+  var lastYear  = parseInt(allM[allM.length-1].slice(0,4));
+  var firstTestYear = firstYear + minTY;
+  if (firstTestYear > lastYear) return null;
+  var origS = $('btS') ? $('btS').value : '';
+  var origE = $('btE') ? $('btE').value : '';
+  var combinedOOS = [];
+  for (var ty = firstTestYear; ty + testWY - 1 <= lastYear; ty += testWY) {
+    if ($('btS')) $('btS').value = ty + '-01';
+    if ($('btE')) $('btE').value = (ty + testWY - 1) + '-12';
+    var recs = runBTcore(mh, mode);
+    if (!recs || recs.length < 2) continue;
+    recs.forEach(function(r) { combinedOOS.push(r.pRet); });
+  }
+  if ($('btS')) $('btS').value = origS;
+  if ($('btE')) $('btE').value = origE;
+  if (!combinedOOS.length) return null;
+  var sNav = init, sPeak = init, sMdd = 0;
+  combinedOOS.forEach(function(r) {
+    sNav *= (1 + r);
+    if (sNav > sPeak) sPeak = sNav;
+    var dd = (sNav - sPeak) / sPeak;
+    if (dd < sMdd) sMdd = dd;
+  });
+  var sYrs  = combinedOOS.length / 12;
+  var sCagr = sYrs > 0 ? Math.pow(sNav / init, 1 / sYrs) - 1 : 0;
+  var sAvg  = combinedOOS.reduce(function(a,b){return a+b;},0) / combinedOOS.length;
+  var sStd  = Math.sqrt(combinedOOS.reduce(function(a,b){return a+Math.pow(b-sAvg,2);},0) / combinedOOS.length) * Math.sqrt(12);
+  var sSharpe = sStd > 0 ? (sCagr - 0.015) / sStd : 0;
+  return { cagr: sCagr, mdd: sMdd, sharpe: sSharpe, months: combinedOOS.length };
+}
+
+async function runVarScan() {
+  if (!CACHE_BUILT) { alert('Build cache first'); return; }
+  var varKey  = document.getElementById('scanVar').value;
+  var scanMin = parseFloat(document.getElementById('scanMin').value);
+  var scanMax = parseFloat(document.getElementById('scanMax').value);
+  var scanStep= parseFloat(document.getElementById('scanStep').value);
+  if (isNaN(scanMin) || isNaN(scanMax) || isNaN(scanStep) || scanStep <= 0) return;
+  var minTY  = parseInt($('wfMinTrain') ? $('wfMinTrain').value : '8') || 8;
+  var testWY = parseInt($('wfTestWin')  ? $('wfTestWin').value  : '1') || 1;
+  var init   = gv('btCap') || 100000;
+  var mh     = parseInt($('btH') ? $('btH').value : '5') || 5;
+  var wtMode = getWeightMode();
+  var label  = SCAN_RANGES[varKey] ? SCAN_RANGES[varKey].label : varKey;
+  var steps  = [];
+  for (var v = scanMin; v <= scanMax + 1e-9; v += scanStep) {
+    steps.push(parseFloat(v.toFixed(6)));
+  }
+  if (steps.length > 25) {
+    if (!confirm('Steps: ' + steps.length + ' -- may take a while. Continue?')) return;
+  }
+  var orig = saveScanVar(varKey);
+  var results = [];
+  sl('stressLog', 'Scanning ' + label + ' (' + steps.length + ' steps)...', null);
+  showL('Scanning: ' + label);
+  try {
+    for (var si = 0; si < steps.length; si++) {
+      var sv = steps[si];
+      $('loadTxt').textContent = label + ' = ' + sv + ' (' + (si+1) + '/' + steps.length + ')';
+      applyScanVar(varKey, sv);
+      await new Promise(function(r) { setTimeout(r, 0); });
+      results.push({ val: sv, res: doWFLoop(minTY, testWY, init, mh, wtMode) });
+    }
+  } catch(e) {
+    sl('stressLog', 'Error: ' + e.message, false);
+  }
+  restoreScanVar(varKey, orig);
+  sl('stressLog', 'Scan done: ' + label, true);
+  renderVarScan(results, label, varKey);
+  hideL();
+}
+
+function renderVarScan(results, label, varKey) {
+  function fp(v) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'; }
+  function gc(v) { return v >= 0 ? 'var(--gr)' : 'var(--re)'; }
+  var valid = results.filter(function(r) { return r.res !== null; });
+  if (!valid.length) { sl('stressLog', 'No results', false); return; }
+  var best = valid.reduce(function(a,b) { return b.res.sharpe > a.res.sharpe ? b : a; });
+  var thresh = best.res.sharpe * 0.9;
+  var plateau = valid.filter(function(r) { return r.res.sharpe >= thresh; });
+  var chartId = 'vsc_' + varKey + '_' + Date.now();
+  var html = '<div class="card" style="border-top:3px solid var(--ac);margin-bottom:10px;">';
+  html += '<div class="ct">VAR SCAN -- ' + label + '</div>';
+  if (plateau.length) {
+    var pSum    = plateau.reduce(function(a,b){return a+b.val;},0);
+    var pCenter = (pSum / plateau.length).toFixed(3);
+    html += '<div style="background:var(--sf2);border:1px solid var(--bd);padding:8px;font-size:12px;margin-bottom:8px">';
+    html += 'Best Sharpe: <b style="color:var(--gr)">' + best.res.sharpe.toFixed(2) + '</b>';
+    html += ' at <b style="color:var(--gr)">' + best.val + '</b>';
+    html += ' &nbsp;|&nbsp; Plateau (>=90%): <b style="color:var(--ac)">';
+    html += plateau[0].val + ' ~ ' + plateau[plateau.length-1].val + '</b>';
+    html += ' &nbsp;|&nbsp; Center: <b style="color:var(--tw)">' + pCenter + '</b>';
+    html += '</div>';
+  }
+  html += '<div class="tw-wrap"><table><thead><tr>';
+  html += '<th>' + label + '</th><th>OOS CAGR</th><th>OOS MDD</th><th>OOS Sharpe</th><th>Months</th><th></th>';
+  html += '</tr></thead><tbody>';
+  results.forEach(function(r) {
+    if (!r.res) {
+      html += '<tr><td class="mono">' + r.val + '</td><td colspan="5" style="color:var(--mu)">no data</td></tr>';
+      return;
+    }
+    var isBest = (r.val === best.val);
+    var inPlat = plateau.some(function(p) { return p.val === r.val; });
+    html += '<tr style="' + (isBest ? 'background:var(--twd);' : '') + '">';
+    html += '<td class="mono" style="font-weight:700;color:' + (isBest ? 'var(--gr)' : inPlat ? 'var(--ac)' : 'var(--tx)') + '">';
+    html += r.val + (isBest ? ' *' : '') + '</td>';
+    html += '<td class="mono" style="color:' + gc(r.res.cagr)   + '">' + fp(r.res.cagr) + '</td>';
+    html += '<td class="mono" style="color:var(--re)">'           + fp(r.res.mdd)  + '</td>';
+    html += '<td class="mono" style="color:' + gc(r.res.sharpe) + '">' + r.res.sharpe.toFixed(2) + '</td>';
+    html += '<td class="mono" style="color:var(--mu)">'           + r.res.months   + '</td>';
+    html += '<td style="color:var(--mu);font-size:10px">' + (inPlat ? 'plateau' : '') + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += '<div style="position:relative;height:210px;margin-top:8px"><canvas id="' + chartId + '"></canvas></div>';
+  html += '</div>';
+  $('stressRes').classList.remove('hidden');
+  var el = $('stressMetrics');
+  if (el) el.innerHTML = el.innerHTML + html;
+  setTimeout(function() {
+    var ctx = document.getElementById(chartId);
+    if (!ctx || typeof Chart === 'undefined') return;
+    var gc2 = '#1a2030', tc = '#6b7a99';
+    new Chart(ctx.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: results.map(function(r) { return String(r.val); }),
+        datasets: [
+          { label: 'OOS Sharpe', data: results.map(function(r){return r.res?parseFloat(r.res.sharpe.toFixed(3)):null;}),
+            borderColor: '#00e5a0', borderWidth: 2, pointRadius: 4, yAxisID: 'y2', spanGaps: true },
+          { label: 'OOS CAGR %', data: results.map(function(r){return r.res?parseFloat((r.res.cagr*100).toFixed(2)):null;}),
+            borderColor: '#ff6b9d', borderWidth: 2, pointRadius: 3, yAxisID: 'y',  spanGaps: true },
+          { label: 'OOS MDD %',  data: results.map(function(r){return r.res?parseFloat((r.res.mdd*100).toFixed(2)):null;}),
+            borderColor: '#ff4d6d', borderWidth: 1, pointRadius: 3, borderDash: [4,3], yAxisID: 'y', spanGaps: true }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        animation: { duration: 200 },
+        plugins: { legend: { labels: { color: tc, boxWidth: 10, font: { size: 11 } } } },
+        scales: {
+          x:  { ticks: { color: tc }, grid: { color: gc2 },
+                title: { display: true, text: label, color: tc, font: { size: 10 } } },
+          y:  { position: 'left',  ticks: { color: tc, callback: function(v){return v+'%';} },
+                grid: { color: gc2 }, title: { display: true, text: 'CAGR / MDD %', color: tc, font: { size: 10 } } },
+          y2: { position: 'right', ticks: { color: '#00e5a0' }, grid: { drawOnChartArea: false },
+                title: { display: true, text: 'Sharpe', color: '#00e5a0', font: { size: 10 } } }
+        }
+      }
+    });
+  }, 150);
 }
 
 </script>
