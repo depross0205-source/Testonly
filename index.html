@@ -495,7 +495,18 @@ tr:hover{background:var(--sf2)}
   <div class="card">
     <div class="ct">&#x8A55;&#x5206;&#x6B0A;&#x91CD; <span style="font-size:10px;color:var(--gr)">&#x6539;&#x5B8C;&#x6B0A;&#x91CD;&#x76F4;&#x63A5;&#x91CD;&#x8A08;</span></div>
     <div class="g3">
+            <div class="fi" style="grid-column:1/-1">
+        <label>&#x52D5;&#x80FD;&#x5468;&#x671F;&#x7D44;&#x5408;</label>
+        <select id="momPeriodSet" onchange="updateMomPeriods()">
+          <option value="0">240 / 120 / 60 &#x5929; (&#x9577;&#x671F;)</option>
+          <option value="1">120 / 60 / 30 &#x5929; (&#x4E2D;&#x671F;)</option>
+        </select>
+      </div>
+      <div class="fi"><label id="zW_long_lbl">z&#x9577;(240d) %</label><input type="number" id="zW_long" value="50" min="0" max="100" oninput="normMomWeights('long')"></div>
+      <div class="fi"><label id="zW_mid_lbl">z&#x4E2D;(120d) % &#x56FA;</label><input type="number" id="zW_mid" value="30" min="0" max="100" oninput="normMomWeights('mid')"></div>
+      <div class="fi"><label id="zW_short_lbl">z&#x77ED;(60d) %</label><input type="number" id="zW_short" value="20" min="0" max="100" oninput="normMomWeights('short')"></div>
       <div class="fi"><label>&#x52D5;&#x80FD;z(%)</label><input type="number" id="wMom" value="50" min="0" max="100"></div>
+
       <div class="fi"><label>Bias(%)</label><input type="number" id="wBias" value="15" min="0" max="100"></div>
       <div class="fi"><label>Slope(%)</label><input type="number" id="wSlope" value="15" min="0" max="100"></div>
       <div class="fi"><label>&#x91CF;&#x80FD;(%)</label><input type="number" id="wVol" value="10" min="0" max="100"></div>
@@ -636,8 +647,8 @@ tr:hover{background:var(--sf2)}
       <option value="consistMult">&#x52D5;&#x80FD;&#x4E00;&#x81F4;&#x6027;&#x4E58;&#x6578;</option>
       <option value="corrWin">&#x76F8;&#x95DC;&#x6027;&#x7A97;&#x53E3; (&#x6708;)</option>
       <option value="nTrend">N_TREND MA&#x9031;&#x671F;</option>
-      <option value="z240w">&#x52D5;&#x80FD;&#x6B0A;&#x91CD; z240</option>
-      <option value="z120w">&#x52D5;&#x80FD;&#x6B0A;&#x91CD; z120</option>
+            <option value="zLongW">&#x52D5;&#x80FD;&#x9577;&#x671F;&#x6B0A;(&#x77ED;&#x671F;&#x81EA;&#x52D5;)</option>
+
       <option value="wMom">&#x56E0;&#x5B50;&#x6B0A; wMom</option>
       <option value="wKbar">&#x56E0;&#x5B50;&#x6B0A; wKbar</option>
       <option value="wBias">&#x56E0;&#x5B50;&#x6B0A; wBias</option>
@@ -1142,14 +1153,17 @@ function momZ(bars, idx, period) {
   return (ret - mean) / std;
 }
 function rawMom(daily, idx) {
-  if (idx < 240) return null;
-  let z240 = momZ(daily, idx, 240), z120 = momZ(daily, idx, 120), z60 = momZ(daily, idx, 60);
-  if (z240 === null || z120 === null || z60 === null) return null;
-    let score = Z_W240 * z240 + Z_W120 * z120 + Z_W60 * z60;
-
-  if (z240 > 0 && z120 > 0 && z60 > 0) score *= MOM_CONSISTENCY_MULT;
+  var minP = MOM_PERIODS[0];
+  if (idx < minP) return null;
+  var zL = momZ(daily, idx, MOM_PERIODS[0]);
+  var zM = momZ(daily, idx, MOM_PERIODS[1]);
+  var zS = momZ(daily, idx, MOM_PERIODS[2]);
+  if (zL === null || zM === null || zS === null) return null;
+  var score = Z_W_LONG * zL + Z_W_MID * zM + Z_W_SHORT * zS;
+  if (zL > 0 && zM > 0 && zS > 0) score *= MOM_CONSISTENCY_MULT;
   return score;
 }
+
 
 async function buildCache() {
   const stocks = getEnabledStocks();
@@ -2013,7 +2027,59 @@ function renderST(all, hurdle, selectedCodes, rejectedMap, scoreM) {
 }
 
 // 初始化
+function updateMomPeriods() {
+  var pSel = document.getElementById('momPeriodSet');
+  if (!pSel) return;
+  MOM_PERIODS = pSel.value === '1' ? [120, 60, 30] : [240, 120, 60];
+  var ll = document.getElementById('zW_long_lbl');
+  var ml = document.getElementById('zW_mid_lbl');
+  var sl = document.getElementById('zW_short_lbl');
+  if (ll) ll.textContent = 'z' + MOM_PERIODS[0] + 'd %';
+  if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
+  if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
+}
+
+function normMomWeights(changed) {
+  var lEl = document.getElementById('zW_long');
+  var mEl = document.getElementById('zW_mid');
+  var sEl = document.getElementById('zW_short');
+  if (!lEl || !mEl || !sEl) return;
+  var lv = parseFloat(lEl.value) || 0;
+  var mv = parseFloat(mEl.value) || 0;
+  var sv = parseFloat(sEl.value) || 0;
+  var remaining, sumOther;
+  if (changed === 'long') {
+    remaining = Math.max(0, 100 - lv);
+    sumOther = mv + sv;
+    mv = sumOther > 0 ? Math.round(remaining * mv / sumOther) : Math.round(remaining / 2);
+    sv = remaining - mv;
+  } else if (changed === 'mid') {
+    remaining = Math.max(0, 100 - mv);
+    sumOther = lv + sv;
+    lv = sumOther > 0 ? Math.round(remaining * lv / sumOther) : Math.round(remaining / 2);
+    sv = remaining - lv;
+  } else {
+    remaining = Math.max(0, 100 - sv);
+    sumOther = lv + mv;
+    lv = sumOther > 0 ? Math.round(remaining * lv / sumOther) : Math.round(remaining / 2);
+    mv = remaining - lv;
+  }
+  lEl.value = lv; mEl.value = mv; sEl.value = sv;
+  syncMomWeightGlobals();
+}
+
+function syncMomWeightGlobals() {
+  var lEl = document.getElementById('zW_long');
+  var mEl = document.getElementById('zW_mid');
+  var sEl = document.getElementById('zW_short');
+  if (!lEl || !mEl || !sEl) return;
+  Z_W_LONG  = (parseFloat(lEl.value) || 0) / 100;
+  Z_W_MID   = (parseFloat(mEl.value) || 0) / 100;
+  Z_W_SHORT = (parseFloat(sEl.value) || 0) / 100;
+}
+
 window.onload = async function() {
+
   initGroupToggles();
   var hasData = await loadFromDB();
   if (!hasData) console.log('No local data found in IndexedDB.');
@@ -2875,8 +2941,8 @@ var SCAN_RANGES = {
   consistMult: { min: 1.0,  max: 1.5,  step: 0.1,  label: 'Mom Consistency Mult',    needCache: true  },
   corrWin:     { min: 12,   max: 36,   step: 6,    label: 'Corr Window (months)',     needCache: false },
   nTrend:      { min: 30,   max: 90,   step: 15,   label: 'N_TREND (MA period)',      needCache: true  },
-  z240w:       { min: 0.3,  max: 0.7,  step: 0.1,  label: 'Mom Weight z240',         needCache: true  },
-  z120w:       { min: 0.1,  max: 0.5,  step: 0.1,  label: 'Mom Weight z120',         needCache: true  },
+    zLongW:      { min: 0.2,  max: 0.75, step: 0.05, label: 'Mom Long Weight (Short auto)', needCache: true  },
+
   wMom:        { min: 10,   max: 90,   step: 10,   label: 'Factor wMom (0~100)',      needCache: false },
   wKbar:       { min: 0,    max: 30,   step: 5,    label: 'Factor wKbar (0~100)',     needCache: false },
   wBias:       { min: 0,    max: 30,   step: 5,    label: 'Factor wBias (0~100)',     needCache: false },
@@ -2902,8 +2968,8 @@ function saveScanVar(varKey) {
     case 'consistMult': return MOM_CONSISTENCY_MULT;
     case 'corrWin':     return CORR_WIN;
     case 'nTrend':      return N_TREND;
-    case 'z240w':
-    case 'z120w':       return { z240: Z_W240, z120: Z_W120, z60: Z_W60 };
+        case 'zLongW':     return Z_W_LONG;
+
     case 'wMom':        return $('wMom')   ? parseFloat($('wMom').value)   || 50 : 50;
     case 'wKbar':       return $('wKbar')  ? parseFloat($('wKbar').value)  || 10 : 10;
     case 'wBias':       return $('wBias')  ? parseFloat($('wBias').value)  || 10 : 10;
@@ -2921,8 +2987,17 @@ function restoreScanVar(varKey, orig) {
     case 'consistMult': MOM_CONSISTENCY_MULT = orig; break;
     case 'corrWin':     CORR_WIN = orig; break;
     case 'nTrend':      N_TREND = orig; break;
-    case 'z240w':
-    case 'z120w':       Z_W240 = orig.z240; Z_W120 = orig.z120; Z_W60 = orig.z60; break;
+        case 'zLongW': {
+      Z_W_LONG = orig;
+      Z_W_SHORT = Math.max(0, parseFloat((1 - Z_W_MID - orig).toFixed(6)));
+      var _rlEl = document.getElementById('zW_long');
+      var _rsEl = document.getElementById('zW_short');
+      if (_rlEl) _rlEl.value = Math.round(orig * 100);
+      if (_rsEl) _rsEl.value = Math.round(Z_W_SHORT * 100);
+      syncMomWeightGlobals();
+      break;
+    }
+
     case 'wMom':        if ($('wMom'))   $('wMom').value   = orig; break;
     case 'wKbar':       if ($('wKbar'))  $('wKbar').value  = orig; break;
     case 'wBias':       if ($('wBias'))  $('wBias').value  = orig; break;
@@ -2939,19 +3014,7 @@ function applyScanVar(varKey, val) {
     case 'consistMult': MOM_CONSISTENCY_MULT = val; break;
     case 'corrWin':     CORR_WIN = Math.round(val); break;
     case 'nTrend':      N_TREND = Math.round(val); break;
-    case 'z240w': {
-      var rem = parseFloat((1 - val).toFixed(6));
-      Z_W240 = val;
-      Z_W120 = parseFloat((rem * 0.6).toFixed(6));
-      Z_W60  = parseFloat((rem * 0.4).toFixed(6));
-      break;
-    }
-    case 'z120w': {
-      var rem2 = parseFloat((1 - Z_W240 - val).toFixed(6));
-      Z_W120 = val;
-      Z_W60  = Math.max(0, rem2);
-      break;
-    }
+   
     case 'wMom':   if ($('wMom'))   $('wMom').value   = val; break;
     case 'wKbar':  if ($('wKbar'))  $('wKbar').value  = val; break;
     case 'wBias':  if ($('wBias'))  $('wBias').value  = val; break;
@@ -2959,7 +3022,19 @@ function applyScanVar(varKey, val) {
     case 'wVol':   if ($('wVol'))   $('wVol').value   = val; break;
     case 'regimeExp': if ($('btRegimeExp')) $('btRegimeExp').value = val; break;
   }
-}
+}    
+  case 'zLongW': {
+      var _aRem = Math.max(0, parseFloat((1 - Z_W_MID - val).toFixed(6)));
+      Z_W_LONG  = val;
+      Z_W_SHORT = _aRem;
+      var _alEl = document.getElementById('zW_long');
+      var _asEl = document.getElementById('zW_short');
+      if (_alEl) _alEl.value = Math.round(val * 100);
+      if (_asEl) _asEl.value = Math.round(_aRem * 100);
+      syncMomWeightGlobals();
+      break;
+    }
+
 
 function doWFLoop(minTY, testWY, init, mh, mode) {
   var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['SPY'] ? 'SPY' : null);
