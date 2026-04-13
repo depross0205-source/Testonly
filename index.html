@@ -2037,7 +2037,10 @@ function updateMomPeriods() {
   if (ll) ll.textContent = 'z' + MOM_PERIODS[0] + 'd %';
   if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
   if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
+  CACHE_BUILT = false;
+  updCacheSt();
 }
+
 
 function normMomWeights(changed) {
   var lEl = document.getElementById('zW_long');
@@ -2076,7 +2079,10 @@ function syncMomWeightGlobals() {
   Z_W_LONG  = (parseFloat(lEl.value) || 0) / 100;
   Z_W_MID   = (parseFloat(mEl.value) || 0) / 100;
   Z_W_SHORT = (parseFloat(sEl.value) || 0) / 100;
+  CACHE_BUILT = false;
+  updCacheSt();
 }
+
 
 window.onload = async function() {
   initGroupToggles();
