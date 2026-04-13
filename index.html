@@ -2079,14 +2079,11 @@ function syncMomWeightGlobals() {
 }
 
 window.onload = async function() {
-  // 這裡可以放置初始化邏輯
-};
-
-
   initGroupToggles();
   var hasData = await loadFromDB();
   if (!hasData) console.log('No local data found in IndexedDB.');
 };
+
   function runMultiCount() {
   if (!CACHE_BUILT) { alert('Build cache first'); return; }
   var el = $('btH');
@@ -3023,10 +3020,8 @@ function applyScanVar(varKey, val) {
     case 'wBias':  if ($('wBias'))  $('wBias').value  = val; break;
     case 'wSlope': if ($('wSlope')) $('wSlope').value = val; break;
     case 'wVol':   if ($('wVol'))   $('wVol').value   = val; break;
-    case 'regimeExp': if ($('btRegimeExp')) $('btRegimeExp').value = val; break;
-  }
-}    
-  case 'zLongW': {
+        case 'regimeExp': if ($('btRegimeExp')) $('btRegimeExp').value = val; break;
+    case 'zLongW': {
       var _aRem = Math.max(0, parseFloat((1 - Z_W_MID - val).toFixed(6)));
       Z_W_LONG  = val;
       Z_W_SHORT = _aRem;
@@ -3037,6 +3032,9 @@ function applyScanVar(varKey, val) {
       syncMomWeightGlobals();
       break;
     }
+  }
+}
+
 
 
 function doWFLoop(minTY, testWY, init, mh, mode) {
