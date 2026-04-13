@@ -820,7 +820,9 @@ function togglePoolUI() {
    var WEEKLY={},MONTHLY={},DAILY={},BENCH_MONTHLY=[],TNX_MONTHLY=[];
 var RAW_SCORES={},BT_RESULT=null,CHART={},CACHE_BUILT=false,CACHE_TS=null,SKIP_MO=false,CACHE_SKIP_MO=false,CORR_WIN=24;
 var N_TREND=60; var MOM_CONSISTENCY_MULT=1.2; var REBAL_FREQ="1";
-var Z_W240=0.5, Z_W120=0.3, Z_W60=0.2;
+var MOM_PERIODS=[240,120,60];
+var Z_W_LONG=0.5, Z_W_MID=0.3, Z_W_SHORT=0.2;
+
 var CORR_T=0.75;
 
 
