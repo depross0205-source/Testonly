@@ -637,6 +637,9 @@ tr:hover{background:var(--sf2)}
     <button class="bo" onclick="runWalkForward()" style="width:100%;margin-top:6px;color:var(--ye);border-color:var(--ye)">&#x25B6; Walk-Forward Analysis (Anchored)</button>
         <button class="bo" onclick="runWFNCompare()" style="width:100%;margin-top:6px;color:var(--ac);border-color:var(--ac)">&#x25B6; WF N&#x6BD4;&#x8F03; (N=2~15)</button>
     <button class="bo" onclick="runPoolCompare()" style="width:100%;margin-top:6px;color:var(--bl);border-color:var(--bl)">&#x25B6; Pool Compare A+B (&#x7D04;30~60&#x79D2;)</button>
+    <button class="bo" onclick="runRandomBaseline()" style="width:100%;margin-top:6px;color:var(--gr);border-color:var(--gr)">&#x25B6; Random Baseline (N&#x500B;&#x96A8;&#x6A5F;&#x80A1;)</button>
+<button class="bo" onclick="runCostSensitivity()" style="width:100%;margin-top:6px;color:var(--ye);border-color:var(--ye)">&#x25B6; Cost Sensitivity</button>
+
     <div style="border-top:1px solid var(--bd);margin-top:12px;padding-top:10px">
   <div class="ct2">&#x55AE;&#x8B8A;&#x6578; WF &#x6383;&#x63CF;</div>
   <div class="fi" style="margin-bottom:8px">
@@ -3214,6 +3217,223 @@ function renderVarScan(results, label, varKey) {
     });
   }, 150);
 }
+  function runRandomBaseline() {
+    if (!BT_RESULT) { alert('Run backtest first'); return; }
+    var simN = parseInt(document.getElementById('stSimN') ? document.getElementById('stSimN').value : '1000') || 1000;
+    var records = BT_RESULT.records;
+    var init = BT_RESULT.initial;
+    var N = BT_RESULT.mh || 9;
+    var stocks = getEnabledStocks().filter(function(s) { return DAILY[s.c] && DAILY[s.c].length > 0; });
+    if (stocks.length < N) { alert('Not enough stocks in pool'); return; }
+    sl('stressLog', 'Running Random Baseline x' + simN + '...', null);
+    showL('Random Baseline...');
+    setTimeout(function() {
+        try {
+            var cagrs = [], mdds = [], sharpes = [];
+            for (var s = 0; s < simN; s++) {
+                var nav = init, peak = init, mdd = 0, simRets = [];
+                for (var ri = 0; ri < records.length; ri++) {
+                    if (ri === 0) { simRets.push(0); continue; }
+                    var prevM = records[ri - 1].month;
+                    var currM = records[ri].month;
+                    // Fisher-Yates shuffle
+                    var pool = stocks.slice();
+                    for (var i = pool.length - 1; i > 0; i--) {
+                        var j = Math.floor(Math.random() * (i + 1));
+                        var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+                    }
+                    var picked = pool.slice(0, N);
+                    var grossRet = 0, validCount = 0;
+                    for (var pi = 0; pi < picked.length; pi++) {
+                        var p0 = getPriceOnDate(DAILY[picked[pi].c], prevM);
+                        var p1 = getPriceOnDate(DAILY[picked[pi].c], currM);
+                        if (p0 && p1 && p0 > 0) { grossRet += (p1 / p0 - 1); validCount++; }
+                    }
+                    if (validCount > 0) grossRet /= validCount;
+                    nav *= (1 + grossRet);
+                    if (nav > peak) peak = nav;
+                    var dd = (nav - peak) / peak;
+                    if (dd < mdd) mdd = dd;
+                    simRets.push(grossRet);
+                }
+                var yrs = records.length / 12;
+                var cagr = yrs > 0 ? Math.pow(nav / init, 1 / yrs) - 1 : 0;
+                var avg = simRets.reduce(function(a, b) { return a + b; }, 0) / simRets.length;
+                var variance = simRets.reduce(function(a, b) { return a + Math.pow(b - avg, 2); }, 0) / simRets.length;
+                var std = Math.sqrt(variance) * Math.sqrt(12);
+                var sharpe = std > 0 ? (cagr - 0.015) / std : 0;
+                cagrs.push(cagr); mdds.push(mdd); sharpes.push(sharpe);
+            }
+            renderRandomBaseline(cagrs, mdds, sharpes, simN, N);
+            sl('stressLog', 'Random Baseline done x' + simN, true);
+        } catch(e) { sl('stressLog', 'Error: ' + e.message, false); }
+        hideL();
+    }, 80);
+}
+
+function renderRandomBaseline(cagrs, mdds, sharpes, simN, N) {
+    function ptile(arr, p) {
+        var s = arr.slice().sort(function(a, b) { return a - b; });
+        var i = (p / 100) * (s.length - 1);
+        var lo = Math.floor(i), hi = Math.ceil(i);
+        return s[lo] + (s[hi] - s[lo]) * (i - lo);
+    }
+    function fp(v) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'; }
+    function gc(v) { return v >= 0 ? 'var(--gr)' : 'var(--re)'; }
+
+    var orig = BT_RESULT;
+    var origLast = orig.records[orig.records.length - 1];
+    var origYrs = (new Date(origLast.month) - new Date(orig.records[0].month)) / (365.25 * 86400000);
+    var origCagr = Math.pow(origLast.nav / orig.initial, 1 / origYrs) - 1;
+    var origRets = orig.records.map(function(r) { return r.pRet; });
+    var origAvg = origRets.reduce(function(a, b) { return a + b; }, 0) / origRets.length;
+    var origStd = Math.sqrt(origRets.reduce(function(a, b) { return a + Math.pow(b - origAvg, 2); }, 0) / origRets.length) * Math.sqrt(12);
+    var origSharpe = origStd > 0 ? (origCagr - 0.015) / origStd : 0;
+    var origPeak = orig.initial, origMdd = 0;
+    orig.records.forEach(function(r) {
+        if (r.nav > origPeak) origPeak = r.nav;
+        var dd = (r.nav - origPeak) / origPeak;
+        if (dd < origMdd) origMdd = dd;
+    });
+
+    var beatCagr = cagrs.filter(function(v) { return origCagr > v; }).length / simN;
+    var beatSharpe = sharpes.filter(function(v) { return origSharpe > v; }).length / simN;
+    var beatCol = beatCagr >= 0.8 ? 'var(--gr)' : beatCagr >= 0.6 ? 'var(--ye)' : 'var(--re)';
+    var verdict = beatCagr >= 0.8 ? 'STRONG ALPHA' : beatCagr >= 0.6 ? 'WEAK ALPHA' : 'NO EDGE';
+
+    var html = '<div class="card" style="border-top:3px solid var(--gr);margin-bottom:10px;">';
+    html += '<div class="ct">RANDOM BASELINE (N=' + N + ' x' + simN + ')</div>';
+
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">';
+    html += '<div class="card" style="border-top:2px solid ' + beatCol + ';padding:9px;">';
+    html += '<div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:4px">CAGR \u8d85\u8d8a\u96a8\u6a5f\u7387</div>';
+    html += '<div class="mono" style="font-size:20px;color:' + beatCol + '">' + (beatCagr * 100).toFixed(1) + '%</div></div>';
+    html += '<div class="card" style="border-top:2px solid ' + beatCol + ';padding:9px;">';
+    html += '<div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:4px">Sharpe \u8d85\u8d8a\u96a8\u6a5f\u7387</div>';
+    html += '<div class="mono" style="font-size:20px;color:' + beatCol + '">' + (beatSharpe * 100).toFixed(1) + '%</div></div></div>';
+
+    html += '<div style="background:var(--sf2);border:1px solid var(--bd);padding:8px;font-size:12px;margin-bottom:10px;">';
+    html += '\u8a55\u5b9a: <b style="color:' + beatCol + '">' + verdict + '</b> | ';
+    html += '\u7b56\u7565 CAGR <b style="color:var(--ye)">' + fp(origCagr) + '</b> | ';
+    html += '\u96a8\u6a5f P50 <b style="color:var(--mu)">' + fp(ptile(cagrs, 50)) + '</b></div>';
+
+    html += '<div class="tw-wrap"><table><thead><tr>';
+    html += '<th>\u6307\u6a19</th><th>P10</th><th>P25</th><th>P50</th><th>P75</th><th>P90</th><th>\u7b56\u7565\u5be6\u969b</th></tr></thead><tbody>';
+    var rows = [
+        ['CAGR', cagrs, true, origCagr],
+        ['MDD', mdds, true, origMdd],
+        ['Sharpe', sharpes, false, origSharpe]
+    ];
+    rows.forEach(function(row) {
+        var name = row[0], arr = row[1], isPct = row[2], actual = row[3];
+        var f = isPct ? fp : function(v) { return v.toFixed(2); };
+        html += '<tr><td style="color:var(--mu);font-size:10px">' + name + '</td>';
+        [10, 25, 50, 75, 90].forEach(function(p) {
+            var v = ptile(arr, p);
+            html += '<td class="mono" style="color:' + gc(v) + '">' + f(v) + '</td>';
+        });
+        html += '<td class="mono" style="color:var(--ye);font-weight:700">' + f(actual) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    html += '<div style="font-size:10px;color:var(--mu);margin-top:8px;">';
+    html += '\u96a8\u6a5f\u57fa\u6e96: \u6bcf\u671f\u5f9e\u5168\u80a1\u6c60\u96a8\u6a5f\u629e ' + N + ' \u6a94 | \u7121 TS \u9580\u6a3b | \u7121\u52d5\u80fd\u6392\u540d | \u7b49\u6b0a\u914d\u7f6e';
+    html += '</div></div>';
+
+    document.getElementById('stressRes').classList.remove('hidden');
+    var el = document.getElementById('stressMetrics');
+    if (el) el.innerHTML = el.innerHTML + html;
+}
+
+function runCostSensitivity() {
+    if (!CACHE_BUILT) { alert('Build cache first'); return; }
+    var costs = [0.1, 0.3, 0.5, 0.8, 1.0, 1.5, 2.0];
+    var mh = BT_RESULT ? BT_RESULT.mh : (parseInt(document.getElementById('btH') ? document.getElementById('btH').value : '9') || 9);
+    var mode = getWeightMode();
+    var init = gv('btCap') || 100000;
+    var origCost = document.getElementById('btC') ? document.getElementById('btC').value : '0.3';
+    sl('stressLog', 'Running Cost Sensitivity...', null);
+    showL('Cost Sensitivity...');
+    setTimeout(function() {
+        try {
+            var results = [];
+            for (var ci = 0; ci < costs.length; ci++) {
+                if (document.getElementById('btC')) document.getElementById('btC').value = costs[ci];
+                var recs = runBTcore(mh, mode);
+                if (recs && recs.length >= 6) {
+                    results.push({ cost: costs[ci], k: kpi(recs, init) });
+                } else {
+                    results.push({ cost: costs[ci], k: null });
+                }
+            }
+            if (document.getElementById('btC')) document.getElementById('btC').value = origCost;
+            renderCostSensitivity(results, mh);
+            sl('stressLog', 'Cost Sensitivity done', true);
+        } catch(e) {
+            if (document.getElementById('btC')) document.getElementById('btC').value = origCost;
+            sl('stressLog', 'Error: ' + e.message, false);
+        }
+        hideL();
+    }, 80);
+}
+
+function renderCostSensitivity(results, N) {
+    function fp(v) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'; }
+    function gc(v) { return v >= 0 ? 'var(--gr)' : 'var(--re)'; }
+    function sc(v) { return v >= 1.0 ? 'var(--gr)' : v >= 0.7 ? 'var(--ye)' : 'var(--re)'; }
+
+    var breakEven = null;
+    for (var i = 0; i < results.length - 1; i++) {
+        if (results[i].k && results[i + 1].k) {
+            if (results[i].k.cagr > 0 && results[i + 1].k.cagr <= 0) {
+                breakEven = results[i].cost;
+            }
+        }
+    }
+    var baseCagr = results[0] && results[0].k ? results[0].k.cagr : null;
+
+    var html = '<div class="card" style="border-top:3px solid var(--ye);margin-bottom:10px;">';
+    html += '<div class="ct">COST SENSITIVITY (N=' + N + ')</div>';
+
+    if (breakEven !== null) {
+        html += '<div style="background:var(--red);border:1px solid var(--re);padding:8px;font-size:12px;margin-bottom:10px;">';
+        html += '\u6350\u76ca\u8f49\u8ca0\u9580\u6a3b: <b style="color:var(--re)">Cost > ' + breakEven.toFixed(1) + '%</b> \u7b56\u7565\u8f49\u8ca0\u5831\u916c</div>';
+    } else {
+        html += '<div style="background:var(--ted);border:1px solid var(--te);padding:8px;font-size:12px;margin-bottom:10px;">';
+        html += '<b style="color:var(--te)">\u6e4b\u8ba2\u9ad8\u6210\u672c\u4e0b\u4ecd\u6b63\u5831\u916c</b> | \u6210\u672c\u654f\u611f\u5ea6\u4f4e</div>';
+    }
+
+    html += '<div class="tw-wrap"><table><thead><tr>';
+    html += '<th>Cost %</th><th>CAGR</th><th>MDD</th><th>Sharpe</th><th>CAGR \u8870\u6e1b</th></tr></thead><tbody>';
+
+    results.forEach(function(r) {
+        if (!r.k) {
+            html += '<tr><td class="mono">' + r.cost.toFixed(1) + '%</td><td colspan="4" style="color:var(--mu)">no data</td></tr>';
+            return;
+        }
+        var decay = baseCagr !== null ? r.k.cagr - baseCagr : null;
+        var isNeg = r.k.cagr <= 0;
+        var isCurrent = Math.abs(r.cost - (gv('btC') || 0.3)) < 0.05;
+        html += '<tr style="' + (isNeg ? 'background:var(--red);' : isCurrent ? 'background:var(--sf2);' : '') + '">';
+        html += '<td class="mono" style="font-weight:700;color:' + (isNeg ? 'var(--re)' : isCurrent ? 'var(--ye)' : 'var(--mu)') + '">';
+        html += r.cost.toFixed(1) + '%' + (isCurrent ? ' *' : '') + '</td>';
+        html += '<td class="mono" style="color:' + gc(r.k.cagr) + ';font-weight:' + (isNeg ? '700' : '400') + '">' + fp(r.k.cagr) + '</td>';
+        html += '<td class="mono" style="color:var(--re)">' + fp(r.k.mdd) + '</td>';
+        html += '<td class="mono" style="color:' + sc(r.k.sharpe) + '">' + r.k.sharpe.toFixed(2) + '</td>';
+        html += '<td class="mono" style="color:' + (decay !== null && decay < -0.02 ? 'var(--re)' : 'var(--mu)') + '">';
+        html += decay !== null ? fp(decay) : '-';
+        html += '</td></tr>';
+    });
+
+    html += '</tbody></table></div>';
+    html += '<div style="font-size:10px;color:var(--mu);margin-top:8px;">';
+    html += '* \u76ee\u524d\u8a2d\u5b9a\u6210\u672c | \u8870\u6e1b = \u76f8\u5c0d Cost=0.1% \u7684 CAGR \u5dee\u8ddd';
+    html += '</div></div>';
+
+    document.getElementById('stressRes').classList.remove('hidden');
+    var el = document.getElementById('stressMetrics');
+    if (el) el.innerHTML = el.innerHTML + html;
+}
+
 
 </script>
 
