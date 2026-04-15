@@ -1620,11 +1620,13 @@ var sc2 = calcAllScores(scoringM);
     if (DAILY['SGOV'] && getPriceOnDate(DAILY['SGOV'], prevM) && getPriceOnDate(DAILY['SGOV'], sigM)) {
       var s0 = getPriceOnDate(DAILY['SGOV'], prevM), s1 = getPriceOnDate(DAILY['SGOV'], sigM);
       cashRet = s1 / s0 - 1;
-    } else {
-      var cr = getTNXRate(scoreM), cashDivisor = (freq === "2") ? 24 : 12;
+        } else {
+      // 加入 freq === "d" 判斷，避免日頻時無風險利率暴增
+      var cr = getTNXRate(scoreM), cashDivisor = (freq === "d") ? 252 : ((freq === "2") ? 24 : 12);
       var CASH_FACTOR = 0.7; 
-      cashRet = (cr * CASH_FACTOR) / cashDivisor; 
+      cashRet = (cr * CASH_FACTOR) / cashDivisor;
     }
+
 
     var stockRets = {};
     Object.keys(target).forEach(function(c) {
@@ -1771,11 +1773,7 @@ function renderCompare(results, init, mode) {
 function renderBT(records, init, mode) {
   var recs = records; $('btRes').classList.remove('hidden');
   var last = recs[recs.length - 1];
-  
   var freq = $('btFreq') ? $('btFreq').value : "1";
-  var periodLabel = (freq === "d") ? "Date / Stock" : "Month / Stock";
-  var ths = document.querySelectorAll('#btRes thead th');
-  if (ths.length > 0) ths[0].textContent = periodLabel;
 
   var yrs = (new Date(last.month) - new Date(recs[0].month)) / (365.25 * 86400000);
   var tr = last.nav / init - 1, cagr = yrs > 0 ? Math.pow(1 + Math.max(tr, -0.999), 1 / yrs) - 1 : 0;
@@ -1790,7 +1788,7 @@ function renderBT(records, init, mode) {
   var sh = (cagr - 0.015) / std;
 
   // ==============================
-  // 📊 高階統計指標模組 (獨立日線)
+  // 📊 高階統計指標模組 (獨立日線標準)
   // ==============================
   var wins = [], loses = [], flats = [], excessCount = 0;
   var maxWin = 0, maxLoss = 0, alphaSum = 0;
@@ -1800,19 +1798,12 @@ function renderBT(records, init, mode) {
     var bRet = i === 0 ? (recs[i].bNav / init - 1) : (recs[i].bNav / recs[i-1].bNav - 1);
     var alpha = ret - bRet;
     alphaSum += alpha;
-    
     if (alpha > 0) excessCount++;
     
-    // 定義：獲利 > 0.5% 為 Win，< -0.5% 為 Lose，其餘為 Flat
-    if (ret > 0.005) { 
-        wins.push(ret); 
-        if (ret > maxWin) maxWin = ret; 
-    } else if (ret < -0.005) { 
-        loses.push(ret); 
-        if (ret < maxLoss) maxLoss = ret; 
-    } else { 
-        flats.push(ret); 
-    }
+    // 定義：單期獲利 > 0.5% 為 Win，< -0.5% 為 Lose
+    if (ret > 0.005) { wins.push(ret); if (ret > maxWin) maxWin = ret; } 
+    else if (ret < -0.005) { loses.push(ret); if (ret < maxLoss) maxLoss = ret; } 
+    else { flats.push(ret); }
   }
 
   var totalTrades = wins.length + loses.length + flats.length;
@@ -1855,7 +1846,7 @@ function renderBT(records, init, mode) {
                 <b style="color:var(--gr); font-size:14px;">${winRate.toFixed(1)}%</b> / <b style="color:var(--ye); font-size:14px;">${beatRate.toFixed(1)}%</b>
             </div>
             <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">盈 / 虧 / 平 (±0.5%)</span><br>
+                <span style="color:var(--mu); font-size:10px;">單期 盈 / 虧 / 平 (±0.5%)</span><br>
                 <b style="color:var(--tw);">${wins.length}</b> / <b style="color:var(--re);">${loses.length}</b> / <b>${flats.length}</b>
             </div>
             <div class="ib2" style="margin-top:0;">
@@ -1878,77 +1869,161 @@ function renderBT(records, init, mode) {
     </div>
   `;
 
-  $('btBody').innerHTML = recs.slice().reverse().map(function(r, ri) {
-    var idx2 = recs.length - 1 - ri;
-    var pb = idx2 > 0 ? recs[idx2 - 1].bNav : init;
-    var prevNav = idx2 > 0 ? recs[idx2 - 1].nav : init;
-    var bRet = r.bNav / pb - 1;
-    var ex = r.pRet - bRet;
-    var rc = r.pRet >= 0 ? 'var(--gr)' : 'var(--re)';
-    var ec = ex >= 0 ? 'var(--gr)' : 'var(--re)';
+  // ==============================
+  // 🔄 雙軌渲染邏輯：日頻 (交易明細) vs 月頻 (期數明細)
+  // ==============================
+  var headRow = document.querySelector('#btRes thead tr');
+  
+  if (freq === 'd') {
+    // 【日頻模式】渲染：目前持股 + 歷史交易紀錄
+    if (headRow) headRow.innerHTML = '<th>進場日</th><th>出場日</th><th>標的</th><th>方向</th><th>持有天數</th><th>累積報酬</th><th>總貢獻</th>';
     
-    var holdStr = Object.keys(r.holdings).map(function(k) {
-      var wt = r.holdings[k];
-      var isShort = wt < 0;
-      var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
-      var col = isShort ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
-      var bg = isShort ? 'var(--bld)' : (isUs ? 'var(--usd)' : 'var(--twd)');
-      var bst = isShort ? 'dashed' : 'solid';
-      var nm = getStockName(k);
-      var pct = Math.abs(wt * 100).toFixed(0) + '%';
-      var lbl = (isShort ? 'S ' : '') + k + (nm && nm !== k ? ' ' + nm : '');
-      return `<span style="background:${bg}; color:${col}; border:1px ${bst} ${col}; padding:1px 6px; border-radius:3px; font-size:10px; font-family:monospace; margin:1px;">${lbl} ${pct}</span>`;
-    }).join('');
-
-    var summaryRow = `
-      <tr style="border-top:2px solid var(--bd);">
-        <td class="mono" style="font-weight:700; vertical-align:top;">${r.month}</td>
-        <td style="vertical-align:top;">${holdStr}</td>
-        <td class="mono" style="font-size:10px; color:var(--bl); vertical-align:top;">${(r.hurdle * 100).toFixed(1)}%</td>
-        <td class="mono" style="color:${rc}; font-weight:700; vertical-align:top;">${r.pRet >= 0 ? '+' : ''}${(r.pRet * 100).toFixed(2)}%</td>
-        <td class="mono" style="color:var(--tw); font-weight:700; vertical-align:top;">$${Math.round(r.nav).toLocaleString()}</td>
-        <td class="mono" style="color:var(--mu); vertical-align:top;">$${Math.round(r.bNav).toLocaleString()}</td>
-        <td class="mono" style="color:${ec}; font-weight:700; vertical-align:top;">${ex >= 0 ? '+' : ''}${(ex * 100).toFixed(2)}pp</td>
-      </tr>
-    `;
-
-    var detailRows = '';
-    if (r.stockRets) {
-      Object.keys(r.stockRets).forEach(function(k) {
-        var sr = r.stockRets[k], ret = sr.ret, w = sr.w || 0;
-        var contrib = ret * w, pnl = prevNav * contrib;
-        var isShortPos = w < 0;
-        var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
-        var col = isShortPos ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
-        var rc2 = contrib >= 0 ? 'var(--gr)' : 'var(--re)';
-        var nm = getStockName(k);
-        var dirLabel = isShortPos ? '[S] ' : '';
-        var absPct = Math.abs(w * 100).toFixed(0) + '%';
+    var trades = [];
+    var open = {};
+    
+    // 解析期數淨值，反推出完整的交易進出歷史
+    for (var i = 1; i < recs.length; i++) {
+        var r = recs[i];
+        var prevM = recs[i-1].month;
         
-        detailRows += `
-          <tr style="background:var(--bg); opacity:0.85;">
-            <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
-            <td style="padding:3px 8px; border-bottom:1px solid var(--bd); font-family:monospace; font-size:11px; color:${col};">
-              ${dirLabel}${k}${nm && nm !== k ? ` <span style="color:var(--mu); font-size:10px;">${nm}</span>` : ''} 
-              <span style="color:var(--mu); font-size:10px;">${absPct}</span>
-            </td>
-            <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
-            <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:var(--mu);">
-              ${ret >= 0 ? '+' : ''}${(ret * 100).toFixed(2)}%
-            </td>
-            <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:${rc2};">
-              ${pnl >= 0 ? '+$' : '-$'}${Math.abs(Math.round(pnl)).toLocaleString()}
-            </td>
-            <td colspan="2" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:10px; color:${rc2};">
-              contrib: ${contrib >= 0 ? '+' : ''}${(contrib * 100).toFixed(2)}%
-            </td>
-          </tr>
-        `;
-      });
+        // 檢查賣出：上期持有，但本期不再持有的標的
+        for (var c in open) {
+            if (!r.stockRets[c]) {
+                var t = open[c];
+                t.outDate = prevM; 
+                t.days = Math.floor((new Date(t.outDate) - new Date(t.inDate)) / 86400000);
+                trades.push(t);
+                delete open[c];
+            } else {
+                // 繼續持有，累加期間報酬與貢獻
+                open[c].ret = (1 + open[c].ret) * (1 + r.stockRets[c].ret) - 1;
+                open[c].contrib += r.stockRets[c].ret * r.stockRets[c].w;
+            }
+        }
+        // 檢查買進：本期新增的標的
+        for (var c in r.stockRets) {
+            if (!open[c] && c !== 'CASH') {
+                open[c] = {
+                    code: c,
+                    inDate: prevM,
+                    ret: r.stockRets[c].ret,
+                    contrib: r.stockRets[c].ret * r.stockRets[c].w,
+                    dir: r.stockRets[c].w < 0 ? 'Short' : 'Long'
+                };
+            }
+        }
     }
-    return summaryRow + detailRows;
-  }).join('');
+
+    var currentHtml = '<tr><td colspan="7" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--tw);padding:8px">👇 目前持股狀態 (Current Holdings) 👇</td></tr>';
+    for (var c in open) {
+        var t = open[c];
+        var rc = t.ret >= 0 ? 'var(--gr)' : 'var(--re)';
+        var nm = getStockName(t.code) || '';
+        currentHtml += `<tr style="border-top:1px solid var(--tw)">
+            <td class="mono">${t.inDate}</td>
+            <td class="mono" style="color:var(--ye)">Holding</td>
+            <td class="mono" style="font-weight:bold;color:var(--tw)">${t.code} <span style="font-size:10px;color:var(--mu)">${nm}</span></td>
+            <td class="mono">${t.dir}</td>
+            <td class="mono">${Math.floor((new Date(last.month) - new Date(t.inDate)) / 86400000)}</td>
+            <td class="mono" style="color:${rc};font-weight:700">${(t.ret >= 0 ? '+' : '')}${(t.ret*100).toFixed(2)}%</td>
+            <td class="mono" style="color:${rc};font-weight:700">${(t.contrib >= 0 ? '+' : '')}${(t.contrib*100).toFixed(2)}%</td>
+        </tr>`;
+    }
+
+    var histHtml = '<tr><td colspan="7" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--mu);padding:8px">👇 歷史已實現交易 (Trade History) 👇</td></tr>';
+    trades.reverse().forEach(t => {
+        var rc = t.ret >= 0 ? 'var(--gr)' : 'var(--re)';
+        var nm = getStockName(t.code) || '';
+        histHtml += `<tr>
+            <td class="mono" style="color:var(--mu)">${t.inDate}</td>
+            <td class="mono">${t.outDate}</td>
+            <td class="mono" style="font-weight:bold">${t.code} <span style="font-size:10px;color:var(--mu)">${nm}</span></td>
+            <td class="mono">${t.dir}</td>
+            <td class="mono">${t.days}</td>
+            <td class="mono" style="color:${rc}">${(t.ret >= 0 ? '+' : '')}${(t.ret*100).toFixed(2)}%</td>
+            <td class="mono" style="color:${rc}">${(t.contrib >= 0 ? '+' : '')}${(t.contrib*100).toFixed(2)}%</td>
+        </tr>`;
+    });
+
+    $('btBody').innerHTML = currentHtml + histHtml;
+
+  } else {
+    // 【月/半月頻模式】渲染：原版逐期持股明細
+    if (headRow) headRow.innerHTML = '<th>Month / Stock</th><th>Holdings</th><th>Hurdle%</th><th>Return%</th><th>NAV / +$PnL</th><th>TAIEX / Contrib</th><th>Alpha%</th>';
+
+    $('btBody').innerHTML = recs.slice().reverse().map(function(r, ri) {
+      var idx2 = recs.length - 1 - ri;
+      var pb = idx2 > 0 ? recs[idx2 - 1].bNav : init;
+      var prevNav = idx2 > 0 ? recs[idx2 - 1].nav : init;
+      var bRet = r.bNav / pb - 1;
+      var ex = r.pRet - bRet;
+      var rc = r.pRet >= 0 ? 'var(--gr)' : 'var(--re)';
+      var ec = ex >= 0 ? 'var(--gr)' : 'var(--re)';
+      
+      var holdStr = Object.keys(r.holdings).map(function(k) {
+        var wt = r.holdings[k];
+        var isShort = wt < 0;
+        var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
+        var col = isShort ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
+        var bg = isShort ? 'var(--bld)' : (isUs ? 'var(--usd)' : 'var(--twd)');
+        var bst = isShort ? 'dashed' : 'solid';
+        var nm = getStockName(k);
+        var pct = Math.abs(wt * 100).toFixed(0) + '%';
+        var lbl = (isShort ? 'S ' : '') + k + (nm && nm !== k ? ' ' + nm : '');
+        return `<span style="background:${bg}; color:${col}; border:1px ${bst} ${col}; padding:1px 6px; border-radius:3px; font-size:10px; font-family:monospace; margin:1px;">${lbl} ${pct}</span>`;
+      }).join('');
+
+      var summaryRow = `
+        <tr style="border-top:2px solid var(--bd);">
+          <td class="mono" style="font-weight:700; vertical-align:top;">${r.month}</td>
+          <td style="vertical-align:top;">${holdStr}</td>
+          <td class="mono" style="font-size:10px; color:var(--bl); vertical-align:top;">${(r.hurdle * 100).toFixed(1)}%</td>
+          <td class="mono" style="color:${rc}; font-weight:700; vertical-align:top;">${r.pRet >= 0 ? '+' : ''}${(r.pRet * 100).toFixed(2)}%</td>
+          <td class="mono" style="color:var(--tw); font-weight:700; vertical-align:top;">$${Math.round(r.nav).toLocaleString()}</td>
+          <td class="mono" style="color:var(--mu); vertical-align:top;">$${Math.round(r.bNav).toLocaleString()}</td>
+          <td class="mono" style="color:${ec}; font-weight:700; vertical-align:top;">${ex >= 0 ? '+' : ''}${(ex * 100).toFixed(2)}pp</td>
+        </tr>
+      `;
+
+      var detailRows = '';
+      if (r.stockRets) {
+        Object.keys(r.stockRets).forEach(function(k) {
+          var sr = r.stockRets[k], ret = sr.ret, w = sr.w || 0;
+          var contrib = ret * w, pnl = prevNav * contrib;
+          var isShortPos = w < 0;
+          var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
+          var col = isShortPos ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
+          var rc2 = contrib >= 0 ? 'var(--gr)' : 'var(--re)';
+          var nm = getStockName(k);
+          var dirLabel = isShortPos ? '[S] ' : '';
+          var absPct = Math.abs(w * 100).toFixed(0) + '%';
+          
+          detailRows += `
+            <tr style="background:var(--bg); opacity:0.85;">
+              <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
+              <td style="padding:3px 8px; border-bottom:1px solid var(--bd); font-family:monospace; font-size:11px; color:${col};">
+                ${dirLabel}${k}${nm && nm !== k ? ` <span style="color:var(--mu); font-size:10px;">${nm}</span>` : ''} 
+                <span style="color:var(--mu); font-size:10px;">${absPct}</span>
+              </td>
+              <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
+              <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:var(--mu);">
+                ${ret >= 0 ? '+' : ''}${(ret * 100).toFixed(2)}%
+              </td>
+              <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:${rc2};">
+                ${pnl >= 0 ? '+$' : '-$'}${Math.abs(Math.round(pnl)).toLocaleString()}
+              </td>
+              <td colspan="2" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:10px; color:${rc2};">
+                contrib: ${contrib >= 0 ? '+' : ''}${(contrib * 100).toFixed(2)}%
+              </td>
+            </tr>
+          `;
+        });
+      }
+      return summaryRow + detailRows;
+    }).join('');
+  }
 }
+
 
 
 
