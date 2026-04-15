@@ -768,6 +768,20 @@ tr:hover{background:var(--sf2)}
     <option value="2">極短 (60/20/5)</option>
   </select>
 </div>
+<div class="fi"><label>訊號延遲 (T-lag)</label>
+  <select id="sigLag">
+    <option value="1">T-1 (昨收確認，今收買進)</option>
+    <option value="2">T-2 (前天確認，今收買進)</option>
+  </select>
+</div>
+
+<div class="fi"><label>動能週期</label>
+  <select id="momPeriodSet" onchange="updateMomPeriods()">
+    <option value="0">長線 (240/120/60)</option>
+    <option value="1">中短 (120/60/30)</option>
+    <option value="2">極短 (60/20/5)</option>
+  </select>
+</div>
 <div class="fi"><label>訊號延遲 (防未來函數)</label>
   <select id="sigLag">
     <option value="1">T-1 (昨收確認，今收買進)</option>
@@ -1103,15 +1117,18 @@ function isBearishRegime(bars, dateStr, period = 60) {
   return price < ma && (prevMA ? ma < prevMA : true);
 }
 function getPreciseRebalanceDates(bars, freq) {
-  const dates = [];
-  let currentMonth = "";
-  let monthBars = [];
+  if (!bars) return [];
+  if (freq === "d") return bars.map(b => b.date); // 日頻回傳所有交易日
+
+  var dates = [];
+  var currentMonth = "";
+  var monthBars = [];
 
   function processMonth(mBars) {
     if(!mBars.length) return;
     // 半月回測：尋找 >= 15日的第一個交易日
     if (freq === "2") {
-      let midBar = mBars.find(b => parseInt(b.date.slice(8, 10)) >= 15);
+      var midBar = mBars.find(b => parseInt(b.date.slice(8, 10)) >= 15);
       if (midBar) dates.push(midBar.date);
     }
     // 不論全月或半月，都統一強制抓取「該月最後一筆」
@@ -1119,18 +1136,19 @@ function getPreciseRebalanceDates(bars, freq) {
   }
 
   bars.forEach(bar => {
-    const ym = bar.date.slice(0, 7);
+    var ym = bar.date.slice(0, 7);
     if (ym !== currentMonth) {
-      if (currentMonth !== "") processMonth(monthBars); // 換月時結算上一月
+      if (currentMonth !== "") processMonth(monthBars);
       currentMonth = ym;
       monthBars = [];
     }
     monthBars.push(bar);
   });
-  if (monthBars.length > 0) processMonth(monthBars); // 結算最後一個月
-  
-  return [...new Set(dates)].sort(); // 確保日期不重複且依序排列
+  if (monthBars.length > 0) processMonth(monthBars);
+
+  return [...new Set(dates)].sort();
 }
+
 
 
 // 合併新舊 K 線資料並去重複、重新排序
@@ -1191,7 +1209,7 @@ async function buildCache() {
   var refDaily = DAILY[masterTicker];
   var globalRebalDates = getPreciseRebalanceDates(refDaily, freq);
   
-  // 【核心修正】不只結算日，預先算出 T-1 與 T-2 的日期並加入快取清單
+  // 不只結算日，預先算出 T-1 與 T-2 的日期並加入快取清單
   var neededDates = [];
   globalRebalDates.forEach(function(d) {
     neededDates.push(d); // T-0 (結算日)
@@ -1204,16 +1222,19 @@ async function buildCache() {
   for(var si=0;si<withData.length;si++){
     var s=withData[si];
     $('loadTxt').textContent='Cache: '+s.c+' ('+(si+1)+'/'+withData.length+')';
-    var bars=DAILY[s.c]; 
+    var bars=DAILY[s.c];
     RAW_SCORES[s.c]={};
     
+    // 動態抓取最大天期 (解決極短線被 240 限制的問題)
+    var maxL = Math.max(MOM_PERIODS[0], MOM_PERIODS[1], MOM_PERIODS[2]);
     let bIdx = 0;
+    
     cacheDates.forEach(function(d){
       // 尋找對應日期的 K 棒索引
       while(bIdx < bars.length - 1 && bars[bIdx + 1].date <= d) { bIdx++; }
       
-      // 確保股票上市滿 240 天，才產生分數存入
-      if(bars[bIdx].date <= d && bIdx >= 240){
+      // 確保股票上市滿動能天期，才產生分數存入
+      if(bars[bIdx].date <= d && bIdx >= maxL){
         var cut = bars.slice(0, bIdx+1);
         RAW_SCORES[s.c][d]={ 
           rm: rawMom(bars, bIdx), 
@@ -1231,6 +1252,7 @@ async function buildCache() {
   CACHE_BUILT=true; CACHE_TS=new Date().toISOString(); CACHE_SKIP_MO=SKIP_MO;
   hideL(); updCacheSt(); updTNX();
 }
+
 
 function updCacheSt(){var el=$('cacheTxt');if(!el)return;if(!CACHE_BUILT){el.textContent='Cache: not built';el.style.color='var(--mu)';return;}var n=Object.keys(RAW_SCORES).length;var dt=new Date(CACHE_TS).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});el.textContent='Cache OK ('+n+' stocks, '+dt+')';el.style.color='var(--gr)';}
 
@@ -2116,11 +2138,12 @@ function renderST(all, hurdle, selectedCodes, rejectedMap, scoreM) {
 }
 
 // 初始化
+// --- 選單連動邏輯 (第一階段更新) ---
+// --- 選單連動邏輯 (第一階段更新) ---
 function updateMomPeriods() {
   var pSel = document.getElementById('momPeriodSet');
   if (!pSel) return;
   
-  // 支援三組動能天期設定
   if (pSel.value === '2') MOM_PERIODS = [60, 20, 5];
   else if (pSel.value === '1') MOM_PERIODS = [120, 60, 30];
   else MOM_PERIODS = [240, 120, 60];
@@ -2132,7 +2155,7 @@ function updateMomPeriods() {
   if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
   if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
   
-  CACHE_BUILT = false; // 切換後強制要求重建快取
+  CACHE_BUILT = false; // 切換天期後強制要求重建快取
   if (typeof updCacheSt === 'function') updCacheSt();
 }
 
@@ -2142,14 +2165,16 @@ function syncFreqParams() {
   if (!freqEl || !pSel) return;
   
   if (freqEl.value === 'd') {
-    pSel.value = '2'; // 日頻預設極短 (60/20/5)
+    pSel.value = '2'; // 日頻自動切換至極短 (60/20/5)
   } else if (freqEl.value === '2') {
-    pSel.value = '1'; // 半月頻預設中短 (120/60/30)
+    pSel.value = '1'; // 半月頻自動切換至中短 (120/60/30)
   } else {
-    pSel.value = '0'; // 月頻預設長線 (240/120/60)
+    pSel.value = '0'; // 月頻自動切換至長線 (240/120/60)
   }
   updateMomPeriods();
 }
+
+
 
 
 
