@@ -1677,6 +1677,7 @@ var sc2 = calcAllScores(scoringM);
 
 
 
+// --- 替換原本的 kpi 函數 ---
 function kpi(records, init) {
   var last = records[records.length - 1];
   var yrs = (new Date(last.month) - new Date(records[0].month)) / (365.25 * 86400000);
@@ -1685,9 +1686,15 @@ function kpi(records, init) {
   records.forEach(function(r) { if (r.nav > pk) pk = r.nav; var dd = (r.nav - pk) / pk; if (dd < mdd) mdd = dd; });
   var rets = records.map(function(r) { return r.pRet; });
   var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
-  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * Math.sqrt(12) || 1;
+  
+  // 動態抓取年化乘數 (解決其他進階模組的 Sharpe 計算錯誤)
+  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
+  var annF = (freq === "d") ? Math.sqrt(252) : (freq === "2" ? Math.sqrt(24) : Math.sqrt(12));
+  
+  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * annF || 1;
   return { cagr: cagr, mdd: mdd, sharpe: (cagr - 0.015) / std, nav: last.nav };
 }
+
 
 function runBT() {
   if (!CACHE_BUILT) { alert('Fetch data first'); return; }
