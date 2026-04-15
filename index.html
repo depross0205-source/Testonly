@@ -1095,36 +1095,34 @@ function isBearishRegime(bars, dateStr, period = 60) {
   return price < ma && (prevMA ? ma < prevMA : true);
 }
 function getPreciseRebalanceDates(bars, freq) {
-  // 新增日頻判斷，若為日頻則直接回傳所有交易日
   if (freq === "d") return bars.map(b => b.date);
 
   const dates = [];
   let currentMonth = "";
   let monthBars = [];
+
   function processMonth(mBars) {
     if(!mBars.length) return;
-    // 半月回測：尋找 >= 15日的第一個交易日
     if (freq === "2") {
       let midBar = mBars.find(b => parseInt(b.date.slice(8, 10)) >= 15);
       if (midBar) dates.push(midBar.date);
     }
-    // 不論全月或半月，都統一強制抓取「該月最後一筆」
     dates.push(mBars[mBars.length - 1].date);
   }
 
-  bars.forEach(bar => 
-    const ym = bar.date.slice(0, 7);
-    if (ym !== currentMonth) {
-      if (currentMonth !== "") processMonth(monthBars); // 換月時結算上一月
-      currentMonth = ym;
+  bars.forEach(bar => {
+    let m = bar.date.slice(0, 7);
+    if (m !== currentMonth) {
+      if (currentMonth !== "") processMonth(monthBars);
+      currentMonth = m;
       monthBars = [];
     }
     monthBars.push(bar);
   });
-  if (monthBars.length > 0) processMonth(monthBars); // 結算最後一個月
-  
-  return [...new Set(dates)].sort(); // 確保日期不重複且依序排列
+  if (monthBars.length > 0) processMonth(monthBars);
+  return dates;
 }
+
 
 
 // 合併新舊 K 線資料並去重複、重新排序
@@ -1659,13 +1657,13 @@ function kpi(records, init) {
   var rets = records.map(function(r) { return r.pRet; });
   var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
   
-  // 動態抓取年化乘數
   var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
   var annF = (freq === "d") ? Math.sqrt(252) : (freq === "2" ? Math.sqrt(24) : Math.sqrt(12));
   
   var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * annF || 1;
   return { cagr: cagr, mdd: mdd, sharpe: (cagr - 0.015) / std, nav: last.nav };
 }
+
 
 
 function runBT() {
