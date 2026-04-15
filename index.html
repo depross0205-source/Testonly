@@ -498,9 +498,11 @@ tr:hover{background:var(--sf2)}
             <div class="fi" style="grid-column:1/-1">
         <label>&#x52D5;&#x80FD;&#x5468;&#x671F;&#x7D44;&#x5408;</label>
         <select id="momPeriodSet" onchange="updateMomPeriods()">
-          <option value="0">240 / 120 / 60 &#x5929; (&#x9577;&#x671F;)</option>
-          <option value="1">120 / 60 / 30 &#x5929; (&#x4E2D;&#x671F;)</option>
-        </select>
+  <option value="0">長天期 (240/120/60)</option>
+  <option value="1">中天期 (120/60/30)</option>
+  <option value="2">短天期 (60/30/5)</option>
+</select>
+
       </div>
       <div class="fi"><label id="zW_long_lbl">z&#x9577;(240d) %</label><input type="number" id="zW_long" value="50" min="0" max="100" oninput="normMomWeights('long')"></div>
       <div class="fi"><label id="zW_mid_lbl">z&#x4E2D;(120d) % &#x56FA;</label><input type="number" id="zW_mid" value="30" min="0" max="100" oninput="normMomWeights('mid')"></div>
@@ -2055,28 +2057,44 @@ function renderST(all, hurdle, selectedCodes, rejectedMap, scoreM) {
 function updateMomPeriods() {
   var pSel = document.getElementById('momPeriodSet');
   if (!pSel) return;
-  MOM_PERIODS = pSel.value === '1' ? [120, 60, 30] : [240, 120, 60];
+  
+  // 根據選單設定 MOM_PERIODS
+  if (pSel.value === '2') {
+    MOM_PERIODS = [60, 30, 5]; // 短天期
+  } else if (pSel.value === '1') {
+    MOM_PERIODS = [120, 60, 30]; // 中天期
+  } else {
+    MOM_PERIODS = [240, 120, 60]; // 長天期
+  }
+  
   var ll = document.getElementById('zW_long_lbl');
   var ml = document.getElementById('zW_mid_lbl');
   var sl = document.getElementById('zW_short_lbl');
   if (ll) ll.textContent = 'z' + MOM_PERIODS[0] + 'd %';
   if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
   if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
+  
   CACHE_BUILT = false;
-  updCacheSt();
+  if (typeof updCacheSt === 'function') updCacheSt();
 }
 
-// 新增此函數：隨交易頻率自動切換動能指標的長短天期
+// 隨交易頻率自動切換動能預設值（但保留使用者手動修改的彈性）
 function syncFreqParams() {
-  var freq = document.getElementById('btFreq').value;
+  var freqEl = document.getElementById('btFreq');
   var pSel = document.getElementById('momPeriodSet');
-  if (freq === 'd') {
-    if (pSel) pSel.value = '1'; // 日頻自動切換至 120/60/30
+  if (!freqEl || !pSel) return; 
+  
+  if (freqEl.value === 'd') {
+    pSel.value = '2'; // 日頻預設：60/30/5
+  } else if (freqEl.value === '2') {
+    pSel.value = '1'; // 半月預設：120/60/30
   } else {
-    if (pSel) pSel.value = '0'; // 月頻/半月頻恢復 240/120/60
+    pSel.value = '0'; // 全月預設：240/120/60
   }
+  
   updateMomPeriods();
 }
+
 
 
 
