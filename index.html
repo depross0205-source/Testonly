@@ -498,11 +498,9 @@ tr:hover{background:var(--sf2)}
             <div class="fi" style="grid-column:1/-1">
         <label>&#x52D5;&#x80FD;&#x5468;&#x671F;&#x7D44;&#x5408;</label>
         <select id="momPeriodSet" onchange="updateMomPeriods()">
-  <option value="0">長天期 (240/120/60)</option>
-  <option value="1">中天期 (120/60/30)</option>
-  <option value="2">短天期 (60/30/5)</option>
-</select>
-
+          <option value="0">240 / 120 / 60 &#x5929; (&#x9577;&#x671F;)</option>
+          <option value="1">120 / 60 / 30 &#x5929; (&#x4E2D;&#x671F;)</option>
+        </select>
       </div>
       <div class="fi"><label id="zW_long_lbl">z&#x9577;(240d) %</label><input type="number" id="zW_long" value="50" min="0" max="100" oninput="normMomWeights('long')"></div>
       <div class="fi"><label id="zW_mid_lbl">z&#x4E2D;(120d) % &#x56FA;</label><input type="number" id="zW_mid" value="30" min="0" max="100" oninput="normMomWeights('mid')"></div>
@@ -764,13 +762,11 @@ tr:hover{background:var(--sf2)}
 </div>
 <!-- V2.0 新增實驗性控制項 -->
 <div class="fi"><label>回測頻率</label>
-  <select id="btFreq" onchange="syncFreqParams()">
+  <select id="btFreq">
     <option value="1">全月 (每月1號)</option>
     <option value="2">半月 (1號 & 15號)</option>
-    <option value="d">日頻 (每日)</option>
   </select>
 </div>
-
 <div class="fi"><label>大盤風控 (Regime)</label>
   <select id="btRegime">
     <option value="off">Off</option>
@@ -1097,34 +1093,34 @@ function isBearishRegime(bars, dateStr, period = 60) {
   return price < ma && (prevMA ? ma < prevMA : true);
 }
 function getPreciseRebalanceDates(bars, freq) {
-  if (freq === "d") return bars.map(b => b.date);
-
   const dates = [];
   let currentMonth = "";
   let monthBars = [];
 
   function processMonth(mBars) {
     if(!mBars.length) return;
+    // 半月回測：尋找 >= 15日的第一個交易日
     if (freq === "2") {
       let midBar = mBars.find(b => parseInt(b.date.slice(8, 10)) >= 15);
       if (midBar) dates.push(midBar.date);
     }
+    // 不論全月或半月，都統一強制抓取「該月最後一筆」
     dates.push(mBars[mBars.length - 1].date);
   }
 
   bars.forEach(bar => {
-    let m = bar.date.slice(0, 7);
-    if (m !== currentMonth) {
-      if (currentMonth !== "") processMonth(monthBars);
-      currentMonth = m;
+    const ym = bar.date.slice(0, 7);
+    if (ym !== currentMonth) {
+      if (currentMonth !== "") processMonth(monthBars); // 換月時結算上一月
+      currentMonth = ym;
       monthBars = [];
     }
     monthBars.push(bar);
   });
-  if (monthBars.length > 0) processMonth(monthBars);
-  return dates;
+  if (monthBars.length > 0) processMonth(monthBars); // 結算最後一個月
+  
+  return [...new Set(dates)].sort(); // 確保日期不重複且依序排列
 }
-
 
 
 // 合併新舊 K 線資料並去重複、重新排序
@@ -1587,19 +1583,16 @@ var sc2 = calcAllScores(scoringM);
     var impactCost = baseSlippage * impactMultiplier;
     var friction = (turnover * COST) + impactCost;
 
-        // 💡 5. 蒐集本期報價，並【修復 UI 明細表 w 屬性】
+    // 💡 5. 蒐集本期報價，並【修復 UI 明細表 w 屬性】
     var cashRet = 0;
     if (DAILY['SGOV'] && getPriceOnDate(DAILY['SGOV'], prevM) && getPriceOnDate(DAILY['SGOV'], sigM)) {
       var s0 = getPriceOnDate(DAILY['SGOV'], prevM), s1 = getPriceOnDate(DAILY['SGOV'], sigM);
       cashRet = s1 / s0 - 1;
     } else {
-      var cr = getTNXRate(scoreM);
-      // 加入日頻 (d) 分母 252 計算
-      var cashDivisor = (freq === "d") ? 252 : (freq === "2" ? 24 : 12);
+      var cr = getTNXRate(scoreM), cashDivisor = (freq === "2") ? 24 : 12;
       var CASH_FACTOR = 0.7; 
-      cashRet = (cr * CASH_FACTOR) / cashDivisor;
+      cashRet = (cr * CASH_FACTOR) / cashDivisor; 
     }
-
 
     var stockRets = {};
     Object.keys(target).forEach(function(c) {
@@ -1658,15 +1651,9 @@ function kpi(records, init) {
   records.forEach(function(r) { if (r.nav > pk) pk = r.nav; var dd = (r.nav - pk) / pk; if (dd < mdd) mdd = dd; });
   var rets = records.map(function(r) { return r.pRet; });
   var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
-  
-  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
-  var annF = (freq === "d") ? Math.sqrt(252) : (freq === "2" ? Math.sqrt(24) : Math.sqrt(12));
-  
-  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * annF || 1;
+  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * Math.sqrt(12) || 1;
   return { cagr: cagr, mdd: mdd, sharpe: (cagr - 0.015) / std, nav: last.nav };
 }
-
-
 
 function runBT() {
   if (!CACHE_BUILT) { alert('Fetch data first'); return; }
@@ -1751,12 +1738,6 @@ function renderCompare(results, init, mode) {
 
 function renderBT(records, init, mode) {
   var recs = records; $('btRes').classList.remove('hidden');
-  
-  // 動態修改 UI 表頭標籤
-  var periodLabel = ($('btFreq') && $('btFreq').value === "d") ? "Date / Stock" : "Month / Stock";
-  var ths = document.querySelectorAll('#btRes thead th');
-  if (ths.length > 0) ths[0].textContent = periodLabel;
-
   var last = recs[recs.length - 1];
   var yrs = (new Date(last.month) - new Date(recs[0].month)) / (365.25 * 86400000);
   var tr = last.nav / init - 1, cagr = yrs > 0 ? Math.pow(1 + Math.max(tr, -0.999), 1 / yrs) - 1 : 0;
@@ -1765,15 +1746,8 @@ function renderBT(records, init, mode) {
   recs.forEach(function(r) { if (r.nav > pk) pk = r.nav; var dd = (r.nav - pk) / pk; if (dd < mdd) mdd = dd; });
   var rets = recs.map(function(r) { return r.pRet; });
   var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
-  
-  // 動態抓取年化乘數
-  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
-  var annF = (freq === "d") ? Math.sqrt(252) : (freq === "2" ? Math.sqrt(24) : Math.sqrt(12));
-  
-  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * annF || 1;
+  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * Math.sqrt(12) || 1;
   var sh = (cagr - 0.015) / std;
-
-  
   var fmt = function(v, p, pl) { return (pl && v >= 0 ? '+' : '') + (p ? (v * 100).toFixed(2) + '%' : v.toFixed(2)); };
   var modeLabel = mode === 'rank' ? 'Rank-Weighted' : 'Equal-Weighted';
   
@@ -2054,50 +2028,21 @@ function renderST(all, hurdle, selectedCodes, rejectedMap, scoreM) {
   });
   $('stBody').innerHTML = html;
 }
+
+// 初始化
 function updateMomPeriods() {
   var pSel = document.getElementById('momPeriodSet');
   if (!pSel) return;
-  
-  // 根據選單設定 MOM_PERIODS
-  if (pSel.value === '2') {
-    MOM_PERIODS = [60, 30, 5]; // 短天期
-  } else if (pSel.value === '1') {
-    MOM_PERIODS = [120, 60, 30]; // 中天期
-  } else {
-    MOM_PERIODS = [240, 120, 60]; // 長天期
-  }
-  
+  MOM_PERIODS = pSel.value === '1' ? [120, 60, 30] : [240, 120, 60];
   var ll = document.getElementById('zW_long_lbl');
   var ml = document.getElementById('zW_mid_lbl');
   var sl = document.getElementById('zW_short_lbl');
   if (ll) ll.textContent = 'z' + MOM_PERIODS[0] + 'd %';
   if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
   if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
-  
   CACHE_BUILT = false;
-  if (typeof updCacheSt === 'function') updCacheSt();
+  updCacheSt();
 }
-
-// 隨交易頻率自動切換動能預設值（但保留使用者手動修改的彈性）
-function syncFreqParams() {
-  var freqEl = document.getElementById('btFreq');
-  var pSel = document.getElementById('momPeriodSet');
-  if (!freqEl || !pSel) return; 
-  
-  if (freqEl.value === 'd') {
-    pSel.value = '2'; // 日頻預設：60/30/5
-  } else if (freqEl.value === '2') {
-    pSel.value = '1'; // 半月預設：120/60/30
-  } else {
-    pSel.value = '0'; // 全月預設：240/120/60
-  }
-  
-  updateMomPeriods();
-}
-
-
-
-
 
 
 function normMomWeights(changed) {
