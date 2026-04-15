@@ -754,14 +754,7 @@ tr:hover{background:var(--sf2)}
           <input type="checkbox" id="btSkipMo" style="width:14px;accent-color:var(--tw)"> &#x8DF3;&#x904E;&#x6700;&#x8FD1;1&#x6708;
         </label>
       </div>
-      <div class="fi"><label>Signal Lag</label>
-  <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="lagMode" id="lagT1" value="1" checked style="width:14px;accent-color:var(--tw)"> t-1</label>
-    <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="lagMode" id="lagT2" value="2" style="width:14px;accent-color:var(--tw)"> t-2</label>
-  </div>
-</div>
-<!-- V2.0 新增實驗性控制項 -->
-<div class="fi"><label>回測頻率</label>
+       <div class="fi"><label>回測頻率</label>
   <select id="btFreq" onchange="syncFreqParams()">
     <option value="1">全月 (每月1號)</option>
     <option value="2">半月 (1號 & 15號)</option>
@@ -775,12 +768,14 @@ tr:hover{background:var(--sf2)}
     <option value="2">極短 (60/20/5)</option>
   </select>
 </div>
-<div class="fi"><label>訊號延遲</label>
+<div class="fi"><label>訊號延遲 (防未來函數)</label>
   <select id="sigLag">
-    <option value="1">T-1 (昨收盤確認，今收盤買進)</option>
-    <option value="2">T-2 (前天收盤確認，今收盤買進)</option>
+    <option value="1">T-1 (昨收確認，今收買進)</option>
+    <option value="2">T-2 (前天確認，今收買進)</option>
   </select>
 </div>
+
+
 
 <div class="fi"><label>大盤風控 (Regime)</label>
   <select id="btRegime">
@@ -1352,8 +1347,8 @@ function runBTcore(mh, mode) {
   
   var rawS = $('btS') ? ($('btS').value || '').trim().slice(0, 10) : '';
   var rawE = $('btE') ? ($('btE').value || '').trim().slice(0, 10) : '';
-  var lagEl = document.querySelector('input[name="lagMode"]:checked');
-  var LAG = lagEl ? parseInt(lagEl.value) : 1; 
+    var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
+
 
   var MIN = 1, cS = MIN;
   if (rawS) { 
@@ -1754,19 +1749,65 @@ function renderCompare(results, init, mode) {
 function renderBT(records, init, mode) {
   var recs = records; $('btRes').classList.remove('hidden');
   var last = recs[recs.length - 1];
+  
+  var freq = $('btFreq') ? $('btFreq').value : "1";
+  var periodLabel = (freq === "d") ? "Date / Stock" : "Month / Stock";
+  var ths = document.querySelectorAll('#btRes thead th');
+  if (ths.length > 0) ths[0].textContent = periodLabel;
+
   var yrs = (new Date(last.month) - new Date(recs[0].month)) / (365.25 * 86400000);
   var tr = last.nav / init - 1, cagr = yrs > 0 ? Math.pow(1 + Math.max(tr, -0.999), 1 / yrs) - 1 : 0;
   var btr = last.bNav / init - 1, bcagr = yrs > 0 ? Math.pow(1 + Math.max(btr, -0.999), 1 / yrs) - 1 : 0;
   var pk = init, mdd = 0;
   recs.forEach(function(r) { if (r.nav > pk) pk = r.nav; var dd = (r.nav - pk) / pk; if (dd < mdd) mdd = dd; });
+  
   var rets = recs.map(function(r) { return r.pRet; });
   var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
-  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * Math.sqrt(12) || 1;
+  var annF = (freq === "d") ? Math.sqrt(252) : (freq === "2" ? Math.sqrt(24) : Math.sqrt(12));
+  var std = Math.sqrt(rets.reduce(function(a, b) { return a + Math.pow(b - avg, 2); }, 0) / rets.length) * annF || 1;
   var sh = (cagr - 0.015) / std;
-  var fmt = function(v, p, pl) { return (pl && v >= 0 ? '+' : '') + (p ? (v * 100).toFixed(2) + '%' : v.toFixed(2)); };
-  var modeLabel = mode === 'rank' ? 'Rank-Weighted' : 'Equal-Weighted';
+
+  // ==============================
+  // 📊 高階統計指標模組 (獨立日線)
+  // ==============================
+  var wins = [], loses = [], flats = [], excessCount = 0;
+  var maxWin = 0, maxLoss = 0, alphaSum = 0;
+
+  for (var i = 0; i < recs.length; i++) {
+    var ret = recs[i].pRet;
+    var bRet = i === 0 ? (recs[i].bNav / init - 1) : (recs[i].bNav / recs[i-1].bNav - 1);
+    var alpha = ret - bRet;
+    alphaSum += alpha;
+    
+    if (alpha > 0) excessCount++;
+    
+    // 定義：獲利 > 0.5% 為 Win，< -0.5% 為 Lose，其餘為 Flat
+    if (ret > 0.005) { 
+        wins.push(ret); 
+        if (ret > maxWin) maxWin = ret; 
+    } else if (ret < -0.005) { 
+        loses.push(ret); 
+        if (ret < maxLoss) maxLoss = ret; 
+    } else { 
+        flats.push(ret); 
+    }
+  }
+
+  var totalTrades = wins.length + loses.length + flats.length;
+  var winRate = totalTrades > 0 ? (wins.length / totalTrades) * 100 : 0;
+  var beatRate = totalTrades > 0 ? (excessCount / totalTrades) * 100 : 0;
+  var avgWin = wins.length > 0 ? wins.reduce((a,b)=>a+b,0) / wins.length : 0;
+  var avgLoss = loses.length > 0 ? loses.reduce((a,b)=>a+b,0) / loses.length : 0;
   
-    $('btMetrics').innerHTML = `
+  var totalGrossWin = wins.reduce((a,b)=>a+b, 0);
+  var totalGrossLoss = Math.abs(loses.reduce((a,b)=>a+b, 0));
+  var profitFactor = totalGrossLoss > 0 ? totalGrossWin / totalGrossLoss : (totalGrossWin > 0 ? 99 : 0);
+  var expPayoff = (wins.length / totalTrades) * avgWin + (loses.length / totalTrades) * avgLoss;
+
+  var fmt = function(v, p, pl) { return (pl && v >= 0 ? '+' : '') + (p ? (v * 100).toFixed(2) + '%' : v.toFixed(2)); };
+  var modeLabel = mode === 'rank' ? 'Rank-Weighted' : (mode === 'ivol' ? 'IV-Weighted' : 'Equal-Weighted');
+  
+  $('btMetrics').innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <div class="card" style="border-top:3px solid var(--tw);">
         <div class="ct">Strategy V2.0 (${modeLabel})</div>
@@ -1783,9 +1824,37 @@ function renderBT(records, init, mode) {
         <div class="mr"><span>Alpha</span><span class="mv ${(cagr - bcagr) >= 0 ? 'tg' : 'tr'}">${fmt(cagr - bcagr, true, true)}</span></div>
       </div>
     </div>
-  `;
 
-  // ... 圖表繪製部分保持原樣 (Chart.js設定) ...
+    <div class="card" style="border-left:4px solid var(--ac); margin-bottom:12px; margin-top:8px;">
+        <div class="ct">📈 交易統計與風險指標 (總期數: ${totalTrades})</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+            <div class="ib2" style="margin-top:0;">
+                <span style="color:var(--mu); font-size:10px;">勝率 / 超額勝率</span><br>
+                <b style="color:var(--gr); font-size:14px;">${winRate.toFixed(1)}%</b> / <b style="color:var(--ye); font-size:14px;">${beatRate.toFixed(1)}%</b>
+            </div>
+            <div class="ib2" style="margin-top:0;">
+                <span style="color:var(--mu); font-size:10px;">盈 / 虧 / 平 (±0.5%)</span><br>
+                <b style="color:var(--tw);">${wins.length}</b> / <b style="color:var(--re);">${loses.length}</b> / <b>${flats.length}</b>
+            </div>
+            <div class="ib2" style="margin-top:0;">
+                <span style="color:var(--mu); font-size:10px;">平均獲利 / 虧損</span><br>
+                <b style="color:var(--gr);">${fmt(avgWin, true, true)}</b> / <b style="color:var(--re);">${fmt(avgLoss, true)}</b>
+            </div>
+            <div class="ib2" style="margin-top:0;">
+                <span style="color:var(--mu); font-size:10px;">單期極端 盈 / 虧</span><br>
+                <b style="color:var(--gr);">${fmt(maxWin, true, true)}</b> / <b style="color:var(--re);">${fmt(maxLoss, true)}</b>
+            </div>
+            <div class="ib2" style="margin-top:0;">
+                <span style="color:var(--mu); font-size:10px;">Profit Factor (獲利因子)</span><br>
+                <b style="color:${profitFactor > 1.5 ? 'var(--gr)' : (profitFactor > 1 ? 'var(--ye)' : 'var(--re)')}; font-size:14px;">${profitFactor.toFixed(2)}</b>
+            </div>
+            <div class="ib2" style="margin-top:0;">
+                <span style="color:var(--mu); font-size:10px;">Exp. Payoff (單期期望值)</span><br>
+                <b style="color:${expPayoff > 0 ? 'var(--gr)' : 'var(--re)'}; font-size:14px;">${fmt(expPayoff, true, true)}</b>
+            </div>
+        </div>
+    </div>
+  `;
 
   $('btBody').innerHTML = recs.slice().reverse().map(function(r, ri) {
     var idx2 = recs.length - 1 - ri;
@@ -1856,7 +1925,9 @@ function renderBT(records, init, mode) {
       });
     }
     return summaryRow + detailRows;
-  }).join('');}
+  }).join('');
+}
+
 
 
 function pct(v, d) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(d === undefined ? 1 : d) + '%'; }
@@ -2048,16 +2119,38 @@ function renderST(all, hurdle, selectedCodes, rejectedMap, scoreM) {
 function updateMomPeriods() {
   var pSel = document.getElementById('momPeriodSet');
   if (!pSel) return;
-  MOM_PERIODS = pSel.value === '1' ? [120, 60, 30] : [240, 120, 60];
+  
+  // 支援三組動能天期設定
+  if (pSel.value === '2') MOM_PERIODS = [60, 20, 5];
+  else if (pSel.value === '1') MOM_PERIODS = [120, 60, 30];
+  else MOM_PERIODS = [240, 120, 60];
+
   var ll = document.getElementById('zW_long_lbl');
   var ml = document.getElementById('zW_mid_lbl');
   var sl = document.getElementById('zW_short_lbl');
   if (ll) ll.textContent = 'z' + MOM_PERIODS[0] + 'd %';
   if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
   if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
-  CACHE_BUILT = false;
-  updCacheSt();
+  
+  CACHE_BUILT = false; // 切換後強制要求重建快取
+  if (typeof updCacheSt === 'function') updCacheSt();
 }
+
+function syncFreqParams() {
+  var freqEl = document.getElementById('btFreq');
+  var pSel = document.getElementById('momPeriodSet');
+  if (!freqEl || !pSel) return;
+  
+  if (freqEl.value === 'd') {
+    pSel.value = '2'; // 日頻預設極短 (60/20/5)
+  } else if (freqEl.value === '2') {
+    pSel.value = '1'; // 半月頻預設中短 (120/60/30)
+  } else {
+    pSel.value = '0'; // 月頻預設長線 (240/120/60)
+  }
+  updateMomPeriods();
+}
+
 
 
 function normMomWeights(changed) {
