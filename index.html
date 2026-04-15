@@ -762,11 +762,26 @@ tr:hover{background:var(--sf2)}
 </div>
 <!-- V2.0 新增實驗性控制項 -->
 <div class="fi"><label>回測頻率</label>
-  <select id="btFreq">
+  <select id="btFreq" onchange="syncFreqParams()">
     <option value="1">全月 (每月1號)</option>
     <option value="2">半月 (1號 & 15號)</option>
+    <option value="d">日頻 (每日)</option>
   </select>
 </div>
+<div class="fi"><label>動能週期</label>
+  <select id="momPeriodSet" onchange="updateMomPeriods()">
+    <option value="0">長線 (240/120/60)</option>
+    <option value="1">中短 (120/60/30)</option>
+    <option value="2">極短 (60/20/5)</option>
+  </select>
+</div>
+<div class="fi"><label>訊號延遲</label>
+  <select id="sigLag">
+    <option value="1">T-1 (昨收盤確認，今收盤買進)</option>
+    <option value="2">T-2 (前天收盤確認，今收盤買進)</option>
+  </select>
+</div>
+
 <div class="fi"><label>大盤風控 (Regime)</label>
   <select id="btRegime">
     <option value="off">Off</option>
