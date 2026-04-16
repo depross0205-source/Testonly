@@ -1363,10 +1363,12 @@ function runBTcore(mh, mode, decay) {
        isMarketBull = momTpx !== null && momTpx > 0;
     }
 
-    var list = [];
-    STOCKS.forEach(function(s) {
+        var list = [];
+    var activeStocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
+    activeStocks.forEach(function(s) {
       var scode = typeof s === 'string' ? s : s.c; 
       if (scode === masterTicker || scode === 'SGOV') return;
+
       if (RAW_SCORES[scode] && RAW_SCORES[scode][sigDt]) {
         var d = RAW_SCORES[scode][sigDt];
         var score = (d.rm[0]*wL + d.rm[1]*wM + d.rm[2]*wS)/100;
