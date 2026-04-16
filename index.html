@@ -1189,13 +1189,36 @@ async function buildCache() {
   const stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : STOCKS.map(c=>({c:c}));
   var withData = stocks.filter(function(s){return DAILY[s.c] && DAILY[s.c].length > 0;});
   if(!withData.length){ if(typeof updCacheSt==='function') updCacheSt(); return; }
-  if(typeof showL==='function') showL('Building Ultimate Cache (Full History)...');
+  if(typeof showL==='function') showL('Building Smart Cache...');
   RAW_SCORES={};
 
-  // 💡 對標主程式：精準抓取趨勢天數，確保 Bias, Vol, Kbar 等多因子滿血運作
   var nTrendEl = document.getElementById('nTrend') || document.getElementById('btNTrend');
   var N_TREND = parseInt(nTrendEl ? nTrendEl.value : '60') || 60;
   var maxL = Math.max(240, MOM_PERIODS[0], MOM_PERIODS[1], MOM_PERIODS[2]);
+
+  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
+  var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
+  var skipMoOn = !!(document.getElementById('btSkipMo') && document.getElementById('btSkipMo').checked);
+
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : withData[0].c);
+  var refDaily = DAILY[masterTicker];
+
+  // 💡 智慧預判核心：精準算出「真正需要計算的日期集合」，拒絕暴力運算浪費！
+  var allM = getPreciseRebalanceDates(refDaily, freq);
+  var neededDates = new Set();
+  
+  for (var idx = LAG; idx < allM.length; idx++) {
+     var scoreM = allM[idx - LAG];
+     if (scoreM) {
+         // 將 Skip Month 的位移也考慮進去，確保回測時絕對找得到資料
+         var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM;
+         neededDates.add(scoringM);
+     }
+  }
+  // 保留最新的一天，供「即時信號」面板使用
+  if (refDaily && refDaily.length > 0) neededDates.add(refDaily[refDaily.length - 1].date);
+  
+  var targetDates = Array.from(neededDates).sort();
 
   for(var si=0;si<withData.length;si++){
     var s=withData[si];
@@ -1204,29 +1227,34 @@ async function buildCache() {
     var bars=DAILY[s.c];
     RAW_SCORES[s.c]={};
 
-    // 歷史上每一天都建立快取，確保日頻平移與 Skip Month 100% 抓得到資料
-    for(var i = maxL; i < bars.length; i++){
-        var d = bars[i].date;
-        var cut = bars.slice(0, i+1);
+    let bIdx = 0;
+    targetDates.forEach(function(d) {
+      // 游標快轉：只找小於等於目標日期的最新一筆 K 線
+      while(bIdx < bars.length - 1 && bars[bIdx + 1].date <= d) { bIdx++; }
+
+      if(bars[bIdx].date <= d && bIdx >= maxL){
+        var cut = bars.slice(0, bIdx+1);
         RAW_SCORES[s.c][d] = {
-          rm: typeof rawMom === 'function' ? rawMom(bars, i) : [0,0,0],
+          rm: typeof rawMom === 'function' ? rawMom(bars, bIdx) : [0,0,0],
           rb: typeof calcBias === 'function' ? calcBias(cut, N_TREND) : 0,
           rs: typeof calcSlope === 'function' ? calcSlope(cut, N_TREND) : 0,
           rv: typeof calcVol === 'function' ? calcVol(cut, N_TREND) : 1,
           rk: typeof calcKbar === 'function' ? calcKbar(cut, N_TREND) : 0,
-          r240: bars[i].c / (bars[i-240] ? bars[i-240].c : 1) - 1
+          r240: bars[bIdx].c / (bars[bIdx-240] ? bars[bIdx-240].c : 1) - 1
         };
-    }
+      }
+    });
     if(si%5===4) await new Promise(function(r){setTimeout(r,0);});
   }
-  
+
   CACHE_BUILT=true;
   if (typeof CACHE_TS !== 'undefined') CACHE_TS = new Date().toISOString();
-  if (typeof SKIP_MO !== 'undefined') CACHE_SKIP_MO = SKIP_MO;
-  
+  if (typeof SKIP_MO !== 'undefined') CACHE_SKIP_MO = skipMoOn;
+
   if(typeof hideL==='function') hideL();
   if(typeof updCacheSt==='function') updCacheSt();
 }
+
 
 
 
@@ -1338,7 +1366,7 @@ function runBTcore(mh, mode, decay) {
   var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
   var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
 
-  // 日頻給予排名緩衝，月頻較嚴格
+  // 💡 對標日線完成版：排名緩衝 (Rank Buffer)。日頻給予寬鬆緩衝，沒跌出名單就不換股！
   var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
 
   var stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
@@ -1376,7 +1404,7 @@ function runBTcore(mh, mode, decay) {
 
   var nav = INIT, bNav = INIT, records = [], holdings = { CASH: 1.0 };
   var currentHoldings = {}; 
-  var drifted = {}; // 💡 對標日線版：精準追蹤實盤權重自然漲跌
+  var drifted = {}; // 💡 對標日線完成版：追蹤實盤權重的自然漲跌
   var DEFENSIVE = ['TLT', 'GLD', 'SGOV'];
 
   for (var idx = cS; idx <= cE; idx++) {
@@ -1389,11 +1417,10 @@ function runBTcore(mh, mode, decay) {
     var skipMoOn = !!(document.getElementById('btSkipMo') && document.getElementById('btSkipMo').checked);
     var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM; 
     
-    // 💡 對標主程式：滿血呼叫 calcAllScores，多因子排名正式啟動
     var sc2 = calcAllScores(scoringM); 
     var valid = sc2.filter(function(r) { return r.score !== null && !isNaN(r.score); });
     valid.sort(function(a, b) { return b.score - a.score; });
-    valid.forEach(function(item, i) { item.rank = i; }); 
+    valid.forEach(function(item, i) { item.rank = i; }); // 賦予絕對全局排名標籤
 
     var isMarketBull = true;
     if (regimeOn && RAW_SCORES[masterTicker] && RAW_SCORES[masterTicker][scoreM]) {
@@ -1404,7 +1431,6 @@ function runBTcore(mh, mode, decay) {
       var b0x = getPriceOnDate(refDaily, prevM);
       var b1x = getPriceOnDate(refDaily, sigM);
       if (b0x && b1x && b0x > 0) bNav *= (1 + (b1x / b0x - 1));
-      // 💡 日期校準：統一使用 prevM 作為標籤，消滅 UI 錯位
       records.push({ month: prevM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: { CASH: 1.0 }, pRet: 0, hurdle: hurdle, stockRets: {} });
       holdings = { CASH: 1.0 }; currentHoldings = { CASH: 1.0 }; drifted = { CASH: 1.0 };
       continue;
@@ -1442,11 +1468,13 @@ function runBTcore(mh, mode, decay) {
     var sel = [];
     function pickFromPool(poolName) {
       var cands = pools[poolName], q = quotas[poolName], picked = 0;
+      // 💡 對標日線完成版：優先保留「未跌出全局 mh + rankBuffer」的舊持股
       var oldCands = cands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (mh + rankBuffer); });
       oldCands.forEach(function(cand) {
         if (picked >= q) return;
         if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) { sel.push(cand); picked++; }
       });
+      // 缺額才從名單中遞補新血
       for (var j = 0; j < cands.length; j++) {
         if (picked >= q) break;
         if (oldCands.includes(cands[j])) continue;
@@ -1462,6 +1490,7 @@ function runBTcore(mh, mode, decay) {
       largeCands.sort(function(a,b) { return b.score - a.score; });
       var totalMax = parseInt(document.getElementById('btH') ? document.getElementById('btH').value : '5') || mh;
       
+      // 💡 大池模式同樣套用排名緩衝
       var largeOldHoldings = largeCands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (totalMax + rankBuffer); });
       largeOldHoldings.forEach(function(cand) {
          if (sel.length >= totalMax) return;
@@ -1490,7 +1519,7 @@ function runBTcore(mh, mode, decay) {
     var exposure = (regimeOn && !isMarketBull) ? (regimeExp / 100) : 1.0;
     var target = {};
 
-    // 💡 對標日線版：Buy & Hold 權重漂移技術，拒絕每日無腦再平衡
+    // 💡 權重漂移技術 (Buy & Hold) 對標實盤
     if (!sel.length) { 
       target['CASH'] = 1.0;
     } else {
@@ -1499,6 +1528,7 @@ function runBTcore(mh, mode, decay) {
 
       if (wtMode === 'eq') {
         if (freq === 'd') {
+          // 【日頻 Buy & Hold】舊股不均分，維持自身自然漲跌權重；新股平分剩下的錢
           var newlyAdded = sel.filter(r => !currentHoldings[r.s.c]);
           var retained = sel.filter(r => currentHoldings[r.s.c]);
           var totalRetainedW = 0;
@@ -1512,6 +1542,7 @@ function runBTcore(mh, mode, decay) {
               newlyAdded.forEach(r => { target[r.s.c] = wEach; });
           }
         } else {
+          // 月頻標準等權重
           var lw = (lScale / sel.length) * exposure;
           sel.forEach(function(r) { target[r.s.c] = lw; });
         }
@@ -1570,7 +1601,7 @@ function runBTcore(mh, mode, decay) {
 
     nav *= (1 + netRet);
     
-    // 💡 精準結算實際權重，供下一期實盤漂移使用
+    // 💡 結算每日漂移後的新權重，傳遞給明天
     drifted = {};
     for (var c in validTarget) { 
         drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet); 
@@ -1586,6 +1617,7 @@ function runBTcore(mh, mode, decay) {
   }
   return records.length >= 6 ? records : null;
 }
+
 
 
 // --- 替換原本的 kpi 函數 ---
