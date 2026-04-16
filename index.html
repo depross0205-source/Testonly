@@ -768,26 +768,13 @@ tr:hover{background:var(--sf2)}
     <option value="2">極短 (60/20/5)</option>
   </select>
 </div>
-<div class="fi"><label>訊號延遲 (T-lag)</label>
+<div class="fi"><label>訊號延遲 (T-Lag 期數)</label>
   <select id="sigLag">
-    <option value="1">T-1 (昨收確認，今收買進)</option>
-    <option value="2">T-2 (前天確認，今收買進)</option>
+    <option value="1">T-1 (前一期結算訊號)</option>
+    <option value="2">T-2 (前二期結算訊號)</option>
   </select>
 </div>
 
-<div class="fi"><label>動能週期</label>
-  <select id="momPeriodSet" onchange="updateMomPeriods()">
-    <option value="0">長線 (240/120/60)</option>
-    <option value="1">中短 (120/60/30)</option>
-    <option value="2">極短 (60/20/5)</option>
-  </select>
-</div>
-<div class="fi"><label>訊號延遲 (防未來函數)</label>
-  <select id="sigLag">
-    <option value="1">T-1 (昨收確認，今收買進)</option>
-    <option value="2">T-2 (前天確認，今收買進)</option>
-  </select>
-</div>
 
 
 
@@ -1197,61 +1184,49 @@ function rawMom(daily, idx) {
 
 
 async function buildCache() {
-  const stocks = getEnabledStocks();
+  const stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : STOCKS.map(c=>({c:c}));
   var withData = stocks.filter(function(s){return DAILY[s.c] && DAILY[s.c].length > 0;});
-  if(!withData.length){updCacheSt();return;}
-  showL('Building V2.0 Cache (包含 T-1/T-2 日期)...'); 
+  if(!withData.length){ if(typeof updCacheSt==='function') updCacheSt(); return; }
+  if(typeof showL==='function') showL('Building V2.0 Cache...');
   RAW_SCORES={};
-  var freq = $('btFreq') ? $('btFreq').value : "1";
-  
-  // 定義大盤基準
-  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : (DAILY['SPY'] ? 'SPY' : withData[0].c));
+
+  var freqEl = document.getElementById('btFreq');
+  var freq = freqEl ? freqEl.value : "1";
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : withData[0].c);
   var refDaily = DAILY[masterTicker];
-  var globalRebalDates = getPreciseRebalanceDates(refDaily, freq);
-  
-  // 不只結算日，預先算出 T-1 與 T-2 的日期並加入快取清單
-  var neededDates = [];
-  globalRebalDates.forEach(function(d) {
-    neededDates.push(d); // T-0 (結算日)
-    neededDates.push(getPrevWorkDay(refDaily, d, 1)); // T-1 日期
-    neededDates.push(getPrevWorkDay(refDaily, d, 2)); // T-2 日期
-  });
-  // 去除重複日期並排序
-  var cacheDates = [...new Set(neededDates)].sort();
+
+  // 取得該頻率需要的期數結算日
+  var cacheDates = getPreciseRebalanceDates(refDaily, freq);
 
   for(var si=0;si<withData.length;si++){
     var s=withData[si];
-    $('loadTxt').textContent='Cache: '+s.c+' ('+(si+1)+'/'+withData.length+')';
+    var loadTxt = document.getElementById('loadTxt');
+    if(loadTxt) loadTxt.textContent='Cache: '+s.c+' ('+(si+1)+'/'+withData.length+')';
     var bars=DAILY[s.c];
     RAW_SCORES[s.c]={};
-    
-    // 動態抓取最大天期 (解決極短線被 240 限制的問題)
+
     var maxL = Math.max(MOM_PERIODS[0], MOM_PERIODS[1], MOM_PERIODS[2]);
     let bIdx = 0;
-    
+
     cacheDates.forEach(function(d){
-      // 尋找對應日期的 K 棒索引
       while(bIdx < bars.length - 1 && bars[bIdx + 1].date <= d) { bIdx++; }
-      
-      // 確保股票上市滿動能天期，才產生分數存入
       if(bars[bIdx].date <= d && bIdx >= maxL){
         var cut = bars.slice(0, bIdx+1);
-        RAW_SCORES[s.c][d]={ 
-          rm: rawMom(bars, bIdx), 
-          rb: calcBias(cut, N_TREND), 
-          rs: calcSlope(cut, N_TREND), 
-          rv: calcVol(cut, N_TREND), 
-          rk: calcKbar(cut, N_TREND), 
-          r240: bars[bIdx].c/(bars[bIdx-240]?bars[bIdx-240].c:1)-1 
+        RAW_SCORES[s.c][d]={
+          rm: typeof rawMom==='function' ? rawMom(bars, bIdx) : [0,0,0],
+          rb: typeof calcBias==='function' ? calcBias(cut, N_TREND) : 0,
+          rs: typeof calcSlope==='function' ? calcSlope(cut, N_TREND) : 0,
+          rv: typeof calcVol==='function' ? calcVol(cut, N_TREND) : 1
         };
       }
     });
-    // 釋放記憶體避免瀏覽器卡死
     if(si%5===4) await new Promise(function(r){setTimeout(r,0);});
   }
-  CACHE_BUILT=true; CACHE_TS=new Date().toISOString(); CACHE_SKIP_MO=SKIP_MO;
-  hideL(); updCacheSt(); updTNX();
+  CACHE_BUILT=true;
+  if(typeof hideL==='function') hideL();
+  if(typeof updCacheSt==='function') updCacheSt();
 }
+
 
 
 function updCacheSt(){var el=$('cacheTxt');if(!el)return;if(!CACHE_BUILT){el.textContent='Cache: not built';el.style.color='var(--mu)';return;}var n=Object.keys(RAW_SCORES).length;var dt=new Date(CACHE_TS).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});el.textContent='Cache OK ('+n+' stocks, '+dt+')';el.style.color='var(--gr)';}
@@ -1357,44 +1332,45 @@ function getBench(dateStr) {
 
 
 function runBTcore(mh, mode, decay) {
-  var wL = parseFloat($('zW_long').value);
-  var wM = parseFloat($('zW_mid').value);
-  var wS = parseFloat($('zW_short').value);
-  var topN = parseInt($('topN').value) || 1;
-  var cost = parseFloat($('btCost').value) || 0;
-  
-  var freq = $('btFreq') ? $('btFreq').value : "1";
-  var LAG = parseInt($('sigLag') ? $('sigLag').value : "1");
-  
-  // 💡 Rank Buffer 設定：日頻緩衝設為 TopN 的 100%，月頻設為 2 名
-  var rankBuffer = (freq === 'd') ? Math.max(5, topN) : 2; 
-  
+  var gEl = function(id) { return document.getElementById(id); };
+  var wL = parseFloat(gEl('zW_long') ? gEl('zW_long').value : 0);
+  var wM = parseFloat(gEl('zW_mid') ? gEl('zW_mid').value : 100);
+  var wS = parseFloat(gEl('zW_short') ? gEl('zW_short').value : 0);
+  var topN = parseInt(gEl('topN') ? gEl('topN').value : 1) || 1;
+  var cost = parseFloat(gEl('btCost') ? gEl('btCost').value : 0) || 0;
+
+  var freq = gEl('btFreq') ? gEl('btFreq').value : "1";
+  var LAG = parseInt(gEl('sigLag') ? gEl('sigLag').value : "1");
+
+  var rankBuffer = (freq === 'd') ? Math.max(5, topN) : 2;
   var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : 'SPY');
   var dts = getPreciseRebalanceDates(DAILY[masterTicker], freq);
+  
   if (!dts || dts.length <= LAG) return [];
 
   var records = [{ month: dts[LAG-1], nav: 1, pRet: 0, holdings: {}, stockRets: {}, bNav: 1, hurdle: 0 }];
   var portNav = 1, bNav = 1;
-  var currentHoldings = {}; 
+  var currentHoldings = {};
 
   for (var i = LAG; i < dts.length - 1; i++) {
-    var execDt = dts[i];     // T 日
-    var exitDt = dts[i+1];   // T+1 期
-    var sigDt = dts[i-LAG];  // 訊號日 (期數平移)
+    var execDt = dts[i];     // T 日 (實際結算日)
+    var exitDt = dts[i+1];   // T+1 期 
+    var sigDt = dts[i-LAG];  // T-lag 日 (利用陣列索引自動達成期數平移)
 
     var isMarketBull = true;
     if (mh && RAW_SCORES[masterTicker] && RAW_SCORES[masterTicker][sigDt]) {
-       var momTpx = RAW_SCORES[masterTicker][sigDt].rm[1]; 
+       var momTpx = RAW_SCORES[masterTicker][sigDt].rm[1];
        isMarketBull = momTpx !== null && momTpx > 0;
     }
 
     var list = [];
     STOCKS.forEach(function(s) {
-      if (s === masterTicker || s === 'SGOV') return;
-      if (RAW_SCORES[s] && RAW_SCORES[s][sigDt]) {
-        var d = RAW_SCORES[s][sigDt];
-        var score = (d.rm[0]*wL + d.rm[1]*wM + d.rm[2]*wS)/100; 
-        list.push({ code: s, score: score, vol: d.rv });
+      var scode = typeof s === 'string' ? s : s.c; 
+      if (scode === masterTicker || scode === 'SGOV') return;
+      if (RAW_SCORES[scode] && RAW_SCORES[scode][sigDt]) {
+        var d = RAW_SCORES[scode][sigDt];
+        var score = (d.rm[0]*wL + d.rm[1]*wM + d.rm[2]*wS)/100;
+        list.push({ code: scode, score: score, vol: d.rv });
       }
     });
 
@@ -1404,7 +1380,6 @@ function runBTcore(mh, mode, decay) {
     var targetHoldings = {};
     if (isMarketBull && list.length > 0) {
       var newTop = [];
-      // Rank Buffer 邏輯：優先保留未跌出緩衝區的舊持股
       list.forEach(function(s) {
         if (currentHoldings[s.code] && s.rank < (topN + rankBuffer)) { newTop.push(s); }
       });
@@ -1418,7 +1393,6 @@ function runBTcore(mh, mode, decay) {
       targetHoldings['CASH'] = 1;
     }
 
-    // 計算真實換手率 (Turnover)
     var turnover = 0;
     var allKeys = new Set([...Object.keys(currentHoldings), ...Object.keys(targetHoldings)]);
     allKeys.forEach(function(k) {
@@ -1430,17 +1404,19 @@ function runBTcore(mh, mode, decay) {
     for (var k in targetHoldings) {
       var w = targetHoldings[k];
       if (k === 'CASH') {
-         var cashRet = 0, s0 = getPriceOnDate(DAILY['SGOV'], execDt), s1 = getPriceOnDate(DAILY['SGOV'], exitDt);
-         if (DAILY['SGOV'] && s0 && s1) { cashRet = s1 / s0 - 1; } 
+         var cashRet = 0, s0 = DAILY['SGOV'] ? getPriceOnDate(DAILY['SGOV'], execDt) : null;
+         var s1 = DAILY['SGOV'] ? getPriceOnDate(DAILY['SGOV'], exitDt) : null;
+         if (DAILY['SGOV'] && s0 && s1) { cashRet = s1 / s0 - 1; }
          else {
-            var cr = getTNXRate(sigDt.slice(0, 7));
+            var cr = typeof getTNXRate === 'function' ? getTNXRate(sigDt.slice(0, 7)) : 0.04;
             var cashDivisor = (freq === "d") ? 252 : ((freq === "2") ? 24 : 12);
             cashRet = (cr * 0.7) / cashDivisor;
          }
          ret += cashRet * w;
          stockRets['CASH'] = { ret: cashRet, w: w };
       } else {
-         var p0 = getPriceOnDate(DAILY[k], execDt), p1 = getPriceOnDate(DAILY[k], exitDt);
+         var p0 = DAILY[k] ? getPriceOnDate(DAILY[k], execDt) : null;
+         var p1 = DAILY[k] ? getPriceOnDate(DAILY[k], exitDt) : null;
          if (p0 && p1) {
             var r = p1 / p0 - 1;
             ret += r * w;
@@ -1453,7 +1429,8 @@ function runBTcore(mh, mode, decay) {
     if (typeof decay !== 'undefined' && decay !== null) { ret += decay; }
 
     portNav *= (1 + ret);
-    var b0 = getPriceOnDate(DAILY[masterTicker], execDt), b1 = getPriceOnDate(DAILY[masterTicker], exitDt);
+    var b0 = DAILY[masterTicker] ? getPriceOnDate(DAILY[masterTicker], execDt) : null;
+    var b1 = DAILY[masterTicker] ? getPriceOnDate(DAILY[masterTicker], exitDt) : null;
     if (b0 && b1) bNav *= (1 + (b1 / b0 - 1));
 
     records.push({ month: execDt, nav: portNav, pRet: ret, holdings: targetHoldings, stockRets: stockRets, bNav: bNav, hurdle: 0 });
@@ -1461,6 +1438,8 @@ function runBTcore(mh, mode, decay) {
   }
   return records;
 }
+
+
 
 // --- 替換原本的 kpi 函數 ---
 function kpi(records, init) {
@@ -2022,8 +2001,13 @@ function updateMomPeriods() {
   if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
   if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
   
-  CACHE_BUILT = false; // 切換天期後強制要求重建快取
+  CACHE_BUILT = false;
   if (typeof updCacheSt === 'function') updCacheSt();
+  
+  // 自動快取機制：切換參數後，自動在背景瞬間重建對應頻率的快取
+  if (typeof buildCache === 'function' && typeof DAILY !== 'undefined' && Object.keys(DAILY).length > 2) {
+      buildCache();
+  }
 }
 
 function syncFreqParams() {
@@ -2031,14 +2015,10 @@ function syncFreqParams() {
   var pSel = document.getElementById('momPeriodSet');
   if (!freqEl || !pSel) return;
   
-  if (freqEl.value === 'd') {
-    pSel.value = '2'; // 日頻自動切換至極短 (60/20/5)
-  } else if (freqEl.value === '2') {
-    pSel.value = '1'; // 半月頻自動切換至中短 (120/60/30)
-  } else {
-    pSel.value = '0'; // 月頻自動切換至長線 (240/120/60)
-  }
-  updateMomPeriods();
+  if (freqEl.value === 'd') { pSel.value = '2'; } 
+  else if (freqEl.value === '2') { pSel.value = '1'; } 
+  else { pSel.value = '0'; }
+  updateMomPeriods(); // 觸發連動並自動重算快取
 }
 
 
