@@ -1356,7 +1356,7 @@ function getBench(dateStr) {
 }
 
 
-function runBTcore(mh, mode) {
+function runBTcore(mh, mode, decay) {
   var wL = parseFloat($('zW_long').value);
   var wM = parseFloat($('zW_mid').value);
   var wS = parseFloat($('zW_short').value);
@@ -1366,25 +1366,21 @@ function runBTcore(mh, mode) {
   var freq = $('btFreq') ? $('btFreq').value : "1";
   var LAG = parseInt($('sigLag') ? $('sigLag').value : "1");
   
-  // 💡 新增 1：動態設定 Rank Buffer (排名緩衝)
-  // 日頻震盪大，給予較寬鬆的緩衝 (例如 TopN + 5)；月頻則較嚴格
-  var rankBuffer = (freq === 'd') ? Math.max(5, Math.floor(topN * 1.0)) : 2; 
+  // 💡 Rank Buffer 設定：日頻緩衝設為 TopN 的 100%，月頻設為 2 名
+  var rankBuffer = (freq === 'd') ? Math.max(5, topN) : 2; 
   
-  var masterTicker = DAILY['^TWII'] ? '^TWII' : '0050';
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : 'SPY');
   var dts = getPreciseRebalanceDates(DAILY[masterTicker], freq);
-  
   if (!dts || dts.length <= LAG) return [];
 
   var records = [{ month: dts[LAG-1], nav: 1, pRet: 0, holdings: {}, stockRets: {}, bNav: 1, hurdle: 0 }];
   var portNav = 1, bNav = 1;
-  
-  // 💡 新增 2：全域追蹤「當前持股權重」，用來計算真實換手率
   var currentHoldings = {}; 
 
   for (var i = LAG; i < dts.length - 1; i++) {
-    var execDt = dts[i];     
-    var exitDt = dts[i+1];   
-    var sigDt = dts[i-LAG];  
+    var execDt = dts[i];     // T 日
+    var exitDt = dts[i+1];   // T+1 期
+    var sigDt = dts[i-LAG];  // 訊號日 (期數平移)
 
     var isMarketBull = true;
     if (mh && RAW_SCORES[masterTicker] && RAW_SCORES[masterTicker][sigDt]) {
@@ -1403,62 +1399,48 @@ function runBTcore(mh, mode) {
     });
 
     list.sort(function(a, b) { return b.score - a.score; });
-    // 賦予排名標籤
     list.forEach(function(item, idx) { item.rank = idx; });
 
     var targetHoldings = {};
-    
     if (isMarketBull && list.length > 0) {
       var newTop = [];
-      // 💡 邏輯 A：優先保留「原本已持有」且「尚未跌出緩衝區 (TopN + rankBuffer)」的股票
+      // Rank Buffer 邏輯：優先保留未跌出緩衝區的舊持股
       list.forEach(function(s) {
-        if (currentHoldings[s.code] && s.rank < (topN + rankBuffer)) {
-          newTop.push(s);
-        }
+        if (currentHoldings[s.code] && s.rank < (topN + rankBuffer)) { newTop.push(s); }
       });
-      
-      // 💡 邏輯 B：補齊剩餘的空缺 (挑選排名最前面的)
       for (var j = 0; j < list.length && newTop.length < topN; j++) {
-        if (!newTop.includes(list[j])) {
-          newTop.push(list[j]);
-        }
+        if (!newTop.includes(list[j])) { newTop.push(list[j]); }
       }
-      
-      // 計算目標權重 (支援 Equal-Weight 與 IV-Weight)
       var totW = 0;
       newTop.forEach(function(t) { t.rawW = (mode === 'ivol' && t.vol > 0) ? 1/t.vol : 1; totW += t.rawW; });
       newTop.forEach(function(t) { targetHoldings[t.code] = t.rawW / totW; });
     } else {
-      // 空頭市場：滿手現金
       targetHoldings['CASH'] = 1;
     }
 
-    // ==========================================
-    // 💡 新增 3：計算「真實換手率 (Turnover)」與「精準摩擦成本」
-    // ==========================================
+    // 計算真實換手率 (Turnover)
     var turnover = 0;
     var allKeys = new Set([...Object.keys(currentHoldings), ...Object.keys(targetHoldings)]);
     allKeys.forEach(function(k) {
-      var wOld = currentHoldings[k] || 0;
-      var wNew = targetHoldings[k] || 0;
-      turnover += Math.abs(wNew - wOld);
+      turnover += Math.abs((targetHoldings[k] || 0) - (currentHoldings[k] || 0));
     });
-    turnover /= 2; // 買賣合計除以2 = 單向真實換手率 (0~100%)
+    turnover /= 2;
 
     var ret = 0, stockRets = {};
-    
-    // 結算投資組合的期間報酬
     for (var k in targetHoldings) {
       var w = targetHoldings[k];
       if (k === 'CASH') {
-         var cr = getTNXRate(sigDt.slice(0, 7));
-         var cashDivisor = (freq === "d") ? 252 : ((freq === "2") ? 24 : 12);
-         var cashRet = (cr * 0.7) / cashDivisor;
+         var cashRet = 0, s0 = getPriceOnDate(DAILY['SGOV'], execDt), s1 = getPriceOnDate(DAILY['SGOV'], exitDt);
+         if (DAILY['SGOV'] && s0 && s1) { cashRet = s1 / s0 - 1; } 
+         else {
+            var cr = getTNXRate(sigDt.slice(0, 7));
+            var cashDivisor = (freq === "d") ? 252 : ((freq === "2") ? 24 : 12);
+            cashRet = (cr * 0.7) / cashDivisor;
+         }
          ret += cashRet * w;
          stockRets['CASH'] = { ret: cashRet, w: w };
       } else {
-         var p0 = getPriceOnDate(DAILY[k], execDt);
-         var p1 = getPriceOnDate(DAILY[k], exitDt);
+         var p0 = getPriceOnDate(DAILY[k], execDt), p1 = getPriceOnDate(DAILY[k], exitDt);
          if (p0 && p1) {
             var r = p1 / p0 - 1;
             ret += r * w;
@@ -1467,25 +1449,18 @@ function runBTcore(mh, mode) {
       }
     }
 
-    // 💡 邏輯 C：依據真實換手率精準扣除手續費/滑價
     ret -= turnover * (cost / 100);
+    if (typeof decay !== 'undefined' && decay !== null) { ret += decay; }
 
     portNav *= (1 + ret);
-    
-    var b0 = getPriceOnDate(DAILY[masterTicker], execDt);
-    var b1 = getPriceOnDate(DAILY[masterTicker], exitDt);
+    var b0 = getPriceOnDate(DAILY[masterTicker], execDt), b1 = getPriceOnDate(DAILY[masterTicker], exitDt);
     if (b0 && b1) bNav *= (1 + (b1 / b0 - 1));
 
     records.push({ month: execDt, nav: portNav, pRet: ret, holdings: targetHoldings, stockRets: stockRets, bNav: bNav, hurdle: 0 });
-    
-    // 將本期目標持股設為下期的歷史持股基準
     currentHoldings = targetHoldings;
   }
-  
   return records;
 }
-
-
 
 // --- 替換原本的 kpi 函數 ---
 function kpi(records, init) {
