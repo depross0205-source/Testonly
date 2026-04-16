@@ -761,13 +761,15 @@ tr:hover{background:var(--sf2)}
     <option value="d">日頻 (每日)</option>
   </select>
 </div>
-<div class="fi"><label>動能週期</label>
-  <select id="momPeriodSet" onchange="updateMomPeriods()">
-    <option value="0">長線 (240/120/60)</option>
-    <option value="1">中短 (120/60/30)</option>
-    <option value="2">極短 (60/20/5)</option>
-  </select>
-</div>
+      <div class="fi" style="grid-column:1/-1">
+        <label>動能週期組合</label>
+        <select id="momPeriodSet" onchange="updateMomPeriods()">
+          <option value="0">長線 (240/120/60 天)</option>
+          <option value="1">中短 (120/60/30 天)</option>
+          <option value="2">極短 (60/20/5 天)</option>
+        </select>
+      </div>
+
 <div class="fi"><label>訊號延遲 (T-Lag 期數)</label>
   <select id="sigLag">
     <option value="1">T-1 (前一期結算訊號)</option>
@@ -1333,80 +1335,95 @@ function getBench(dateStr) {
 
 function runBTcore(mh, mode, decay) {
   if (!CACHE_BUILT) return null;
-  var stocks = getEnabledStocks().filter(function(s) { return DAILY[s.c]; });
-  if (stocks.length < 3) return null;
-  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : (DAILY['SPY'] ? 'SPY' : stocks[0].c));
-  var refDaily = DAILY[masterTicker]; if (!refDaily) return null;
-  var freq = $('btFreq') ? $('btFreq').value : "1";
+  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
+  var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
+
+  // 💡 Rank Buffer: 日頻給予較寬緩衝，月頻嚴格
+  var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
+
+  var stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
+  var withData = stocks.filter(function(s) { return DAILY[s.c]; });
+  if (withData.length < 3) return null;
+
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : 'SPY');
+  var refDaily = DAILY[masterTicker]; 
+  if (!refDaily) return null;
   
   var allM = getPreciseRebalanceDates(refDaily, freq);
-  var rawS = $('btS') ? ($('btS').value || '').trim().slice(0, 10) : '';
-  var rawE = $('btE') ? ($('btE').value || '').trim().slice(0, 10) : '';
+  var rawS = document.getElementById('btS') ? (document.getElementById('btS').value || '').trim().slice(0, 10) : '';
+  var rawE = document.getElementById('btE') ? (document.getElementById('btE').value || '').trim().slice(0, 10) : '';
   
-  var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
   var MIN = Math.max(1, LAG + 1), cS = MIN; 
-  
   if (rawS) { for (var i = cS; i < allM.length; i++) { if (allM[i] >= rawS) { cS = i; break; } } }
   var cE = allM.length - 1;
   if (rawE) { for (var i2 = cE; i2 >= cS; i2--) { if (allM[i2] <= rawE) { cE = i2; break; } } }
   if (cS > cE) return null;
   
-  var INIT = gv('btCap') || 100000, COST = (gv('btC') || 0.3) / 100, ct = CORR_T;
-  var shortN = parseInt($('btSN') ? $('btSN').value : '0') || 0;
-  var capMode = document.querySelector('input[name="capMode"]:checked') ? document.querySelector('input[name="capMode"]:checked').value : 'neutral';
+  var INIT = gv('btCap') || 100000;
+  var costInput = document.getElementById('btCost') || document.getElementById('btC');
+  var COST = (parseFloat(costInput ? costInput.value : 0.3) || 0) / 100;
+  var ct = typeof CORR_T !== 'undefined' ? CORR_T : 0.75;
+  
+  var shortN = parseInt(document.getElementById('btSN') ? document.getElementById('btSN').value : '0') || 0;
+  var capModeEl = document.querySelector('input[name="capMode"]:checked');
+  var capMode = capModeEl ? capModeEl.value : 'neutral';
   var wtModeEl = document.querySelector('input[name="wtMode"]:checked');
-  var wtMode = wtModeEl ? wtModeEl.value : 'equal';
+  var wtMode = wtModeEl ? wtModeEl.value : 'eq';
 
-  var shortTSF = !!($('btSTSF') && $('btSTSF').checked);
-  var indExitOn = $('btIndExit') && $('btIndExit').value === 'on';
-  var regimeOn = $('btRegime') && $('btRegime').value === 'on';
+  var shortTSF = !!(document.getElementById('btSTSF') && document.getElementById('btSTSF').checked);
+  var regimeOn = document.getElementById('btRegime') && document.getElementById('btRegime').value === 'on';
   var regimeExp = gv('btRegimeExp') || 50;
-
-  // 💡 排名緩衝 (Rank Buffer)：日頻給予寬鬆緩衝防震盪，月頻較嚴格
-  var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
 
   var nav = INIT, bNav = INIT, records = [], holdings = { CASH: 1.0 };
   var currentHoldings = {}; 
   var DEFENSIVE = ['TLT', 'GLD', 'SGOV'];
 
   for (var idx = cS; idx <= cE; idx++) {
-    var sigM = allM[idx];       // T+1 期 (賣出日)
-    var prevM = allM[idx - 1];  // T 日 (買進日)
+    var sigM = allM[idx];       
+    var prevM = allM[idx - 1];  
     
-    // 💡 核心修正：完美的期數平移！(月頻退一個月、日頻退一天)
+    // 💡 精準期數平移：日頻退1天，月頻退1期
     var scoreM = allM[idx - 1 - LAG]; 
     if (!scoreM) continue;
     
     var hurdle = getHurdle(scoreM);
-    var skipMoOn = !!($('btSkipMo') && $('btSkipMo').checked);
+    var skipMoOn = !!(document.getElementById('btSkipMo') && document.getElementById('btSkipMo').checked);
     var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM; 
     
-    // 💡 完美還原：呼叫你寫好的神級函數，直接取得正確的 crossZ 正規化分數！
+    // 💡 完美還原：呼叫你寫好的多因子計算引擎，分數/K棒/乖離全數回歸！
     var sc2 = calcAllScores(scoringM); 
-    var valid = sc2.filter(function(r) { return r.score !== null; });
+    var valid = sc2.filter(function(r) { return r.score !== null && !isNaN(r.score); });
     valid.sort(function(a, b) { return b.score - a.score; });
-    valid.forEach(function(item, i) { item.rank = i; }); // 賦予名次標籤
+    valid.forEach(function(item, i) { item.rank = i; }); 
+
+    // 大盤風控判斷 (直接讀 K 線最安全)
+    var isMarketBull = true;
+    if (regimeOn) {
+       var tIdx = refDaily.findIndex(function(b) { return b.date === scoreM; });
+       if (tIdx >= MOM_PERIODS[1]) {
+          isMarketBull = (refDaily[tIdx].c / refDaily[tIdx - MOM_PERIODS[1]].c - 1) > 0;
+       }
+    }
 
     if (valid.length < 5) {
       var b0x = getPriceOnDate(refDaily, prevM);
       var b1x = getPriceOnDate(refDaily, sigM);
       if (b0x && b1x && b0x > 0) bNav *= (1 + (b1x / b0x - 1));
-      var periodStr = prevM + " ~ " + sigM;
-      records.push({ month: sigM, period: periodStr, nav: nav, bNav: bNav, holdings: { CASH: 1.0 }, pRet: 0, hurdle: hurdle, stockRets: {} });
-      holdings = { CASH: 1.0 }; 
-      currentHoldings = { CASH: 1.0 }; 
+      records.push({ month: sigM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: { CASH: 1.0 }, pRet: 0, hurdle: hurdle, stockRets: {} });
+      holdings = { CASH: 1.0 }; currentHoldings = { CASH: 1.0 }; 
       continue;
     }
    
-    var qTW = parseInt($('btQuotaTW') ? $('btQuotaTW').value : '2') || 0;
-    var qUS = parseInt($('btQuotaUS') ? $('btQuotaUS').value : '2') || 0;
-    var qETF = parseInt($('btQuotaETF') ? $('btQuotaETF').value : '1') || 0;
+    var qTW = parseInt(document.getElementById('btQuotaTW') ? document.getElementById('btQuotaTW').value : '2') || 0;
+    var qUS = parseInt(document.getElementById('btQuotaUS') ? document.getElementById('btQuotaUS').value : '2') || 0;
+    var qETF = parseInt(document.getElementById('btQuotaETF') ? document.getElementById('btQuotaETF').value : '1') || 0;
     var quotas = { 'tw': qTW, 'us': qUS, 'etf': qETF };
     var totalQuota = qTW + qUS + qETF;
     var pools = { 'tw': [], 'us': [], 'etf': [] };
-    var useMA60 = $('ma60Filter') ? $('ma60Filter').value === 'on' : true;
-
+    
+    var useMA60 = document.getElementById('ma60Filter') ? document.getElementById('ma60Filter').value === 'on' : true;
     var exitMap = {};
+
     if (useMA60) {
       Object.keys(currentHoldings).forEach(function(c) {
         if (c === 'CASH') return;
@@ -1415,82 +1432,56 @@ function runBTcore(mh, mode, decay) {
         var price = getPriceOnDate(bars, scoreM);
         var prevDate = getPrevWorkDay(refDaily, scoreM, 5);
         var prevMa = calcMA(bars, prevDate, 60);
-        var belowMA = ma && price && price < ma;
-        var slopeNeg = ma && prevMa && ma < prevMa;
-        if (belowMA || slopeNeg) exitMap[c] = true;
+        if ((ma && price && price < ma) || (ma && prevMa && ma < prevMa)) exitMap[c] = true;
       });
     }
 
     valid.forEach(function(r) {
-      var passMom = r.r240 !== null && r.r240 > hurdle && DEFENSIVE.indexOf(r.s.c) === -1;
-      if (!passMom) return;
-      if (exitMap[r.s.c]) return;
-      var p = r.s.pool;
-      if (p === 'tw' || p === 'us' || p === 'etf') {
-        if (pools[p]) pools[p].push(r);
-      }
+      if (r.r240 === null || r.r240 <= hurdle || DEFENSIVE.indexOf(r.s.c) !== -1 || exitMap[r.s.c]) return;
+      if (pools[r.s.pool]) pools[r.s.pool].push(r);
     });
-    pools['tw'].sort(function(a, b) { return b.score - a.score; });
-    pools['us'].sort(function(a, b) { return b.score - a.score; });
-    pools['etf'].sort(function(a, b) { return b.score - a.score; });
+
+    ['tw', 'us', 'etf'].forEach(function(p) { pools[p].sort(function(a,b) { return b.score - a.score; }); });
 
     var sel = [];
     function pickFromPool(poolName) {
-      var candidates = pools[poolName];
-      var quota = quotas[poolName];
-      var picked = 0;
-      
-      // 💡 小池模式：優先讓「未跌出 Rank Buffer」的舊持股連任
-      var poolOldHoldings = candidates.filter(c => currentHoldings[c.s.c] && c.rank < (mh + rankBuffer));
-      poolOldHoldings.forEach(cand => {
-         if (picked >= quota) return;
-         if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) {
-           sel.push(cand); picked++;
-         }
+      var cands = pools[poolName], q = quotas[poolName], picked = 0;
+      // 💡 小池模式：優先讓未跌出 Rank Buffer 的舊持股連任
+      var oldCands = cands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (mh + rankBuffer); });
+      oldCands.forEach(function(cand) {
+        if (picked >= q) return;
+        if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) { sel.push(cand); picked++; }
       });
-
-      for (var j = 0; j < candidates.length; j++) {
-        if (picked >= quota) break;
-        var cand = candidates[j];
-        if (poolOldHoldings.includes(cand)) continue; 
-        if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) {
-          sel.push(cand);
-          picked++;
-        }
+      // 補新股
+      for (var j = 0; j < cands.length; j++) {
+        if (picked >= q) break;
+        if (oldCands.includes(cands[j])) continue;
+        if (sel.every(function(x) { return Math.abs(calcCorr(cands[j].s.c, x.s.c, scoreM)) < ct; })) { sel.push(cands[j]); picked++; }
       }
     }
 
     const modePool = document.getElementById('poolMode') ? document.getElementById('poolMode').value : 'small';
     
-    var candidatesForLarge = valid.filter(function(r) {
-      if (r.r240 === null || r.r240 <= hurdle) return false;
-      if (['TLT', 'GLD', 'SGOV'].indexOf(r.s.c) !== -1) return false;
-      if (exitMap[r.s.c]) return false;
-      return true;
-    });
-
     if (modePool === 'large') {
-      const totalMax = mh || parseInt(document.getElementById('btH').value) || 5;
-      candidatesForLarge.sort((a, b) => b.score - a.score);
+      var largeCands = [];
+      ['tw','us','etf'].forEach(function(p) { largeCands.push.apply(largeCands, pools[p]); });
+      largeCands.sort(function(a,b) { return b.score - a.score; });
+      var totalMax = parseInt(document.getElementById('btH') ? document.getElementById('btH').value : '5') || mh;
       
-      // 💡 大池模式：優先讓「未跌出 Rank Buffer」的舊持股連任
-      var largeOldHoldings = candidatesForLarge.filter(c => currentHoldings[c.s.c] && c.rank < (totalMax + rankBuffer));
-      largeOldHoldings.forEach(cand => {
+      // 💡 大池模式 Rank Buffer
+      var largeOldHoldings = largeCands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (totalMax + rankBuffer); });
+      largeOldHoldings.forEach(function(cand) {
          if (sel.length >= totalMax) return;
-         if (sel.every(x => Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct)) sel.push(cand);
+         if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) sel.push(cand);
       });
 
-      for (var cand of candidatesForLarge) {
+      for (var k = 0; k < largeCands.length; k++) {
         if (sel.length >= totalMax) break;
-        if (largeOldHoldings.includes(cand)) continue; 
-        if (sel.every(x => Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct)) {
-          sel.push(cand);
-        }
+        if (largeOldHoldings.includes(largeCands[k])) continue; 
+        if (sel.every(function(x) { return Math.abs(calcCorr(largeCands[k].s.c, x.s.c, scoreM)) < ct; })) sel.push(largeCands[k]);
       }
     } else {
-      pickFromPool('us');
-      pickFromPool('tw');
-      pickFromPool('etf');
+      pickFromPool('us'); pickFromPool('tw'); pickFromPool('etf');
     }
 
     var slots = (modePool === 'large' ? (parseInt(document.getElementById('btH').value)||mh) : totalQuota) - sel.length;
@@ -1500,16 +1491,10 @@ function runBTcore(mh, mode, decay) {
         if (r.s.c === 'SGOV') return r.r240 > 0;
         return (r.s.c === 'TLT' || r.s.c === 'GLD') && r.r240 > hurdle + 0.01;
       }).sort(function(a, b) { return b.r240 - a.r240; });
-      for (var jd = 0; jd < defCands.length && slots > 0; jd++) { 
-        sel.push(defCands[jd]);
-        slots--; 
-      }
+      for (var jd = 0; jd < defCands.length && slots > 0; jd++) { sel.push(defCands[jd]); slots--; }
     }
 
-    var exposure = 1.0;
-    if (regimeOn && isBearishRegime(refDaily, scoreM, 60)) {
-      exposure = regimeExp / 100;
-    }
+    var exposure = (regimeOn && !isMarketBull) ? (regimeExp / 100) : 1.0;
 
     var selS = [];
     if (shortN > 0 && sel.length > 0) {
@@ -1519,8 +1504,7 @@ function runBTcore(mh, mode, decay) {
       if (shortTSF) sCands = sCands.filter(function(r) { return r.r240 !== null && r.r240 < 0; });
       sCands.sort(function(a, b) { return a.score - b.score; });
       for (var ks = 0; ks < sCands.length && selS.length < shortN; ks++) {
-        var candS = sCands[ks];
-        if (selS.every(function(x) { return Math.abs(calcCorr(candS.s.c, x.s.c, scoreM)) < ct; })) selS.push(candS);
+        if (selS.every(function(x) { return Math.abs(calcCorr(sCands[ks].s.c, x.s.c, scoreM)) < ct; })) selS.push(sCands[ks]);
       }
     }
 
@@ -1539,59 +1523,44 @@ function runBTcore(mh, mode, decay) {
           var ivolArr = sel.map(function(r) {
             var v = calcVol(DAILY[r.s.c], scoreM, 60);
             v = (v && v > 0) ? v : 0.2;
-            volSum += 1 / v;
-            return { c: r.s.c, iv: 1 / v };
+            volSum += 1 / v; return { c: r.s.c, iv: 1 / v };
           });
-          ivolArr.forEach(function(x) {
-            target[x.c] = (lScale * x.iv / volSum) * exposure;
-          });
+          ivolArr.forEach(function(x) { target[x.c] = (lScale * x.iv / volSum) * exposure; });
         } else {
           var lw = (lScale / sel.length) * exposure;
           sel.forEach(function(r) { target[r.s.c] = lw; });
         }
       }
-      
       if (selS.length > 0) {
         var sdenom = wtMode === 'rank' ? selS.length * (selS.length + 1) / 2 : selS.length;
         selS.forEach(function(r, i) { target[r.s.c] = -sScale * (mode === 'rank' ? ((selS.length - i) / sdenom) : 1 / sdenom) * exposure; });
       }
     }
 
-    var totalW = 0;
-    Object.keys(target).forEach(function(c) { totalW += target[c]; });
+    var totalW = 0; Object.keys(target).forEach(function(c) { totalW += target[c]; });
     var cashW = 1.0 - totalW;
     if (cashW > 0.001) target['CASH'] = (target['CASH'] || 0) + cashW;
 
-    // 💡 換手率 (Turnover) 成本防呆邏輯
+    // 💡 真實換手率精算
     var turnover = 0;
     var allT = new Set([...Object.keys(currentHoldings), ...Object.keys(target)]);
-    allT.forEach(function(c) {
-      var oldW = currentHoldings[c] || 0; 
-      var newW = target[c] || 0;
-      turnover += Math.abs(newW - oldW);
-    });
+    allT.forEach(function(c) { turnover += Math.abs((target[c] || 0) - (currentHoldings[c] || 0)); });
     turnover /= 2;
 
-    var baseSlippage = 0.001; 
-    var impactMultiplier = Math.max(1, Math.pow(turnover / 0.2, 1.5));
-    var impactCost = baseSlippage * impactMultiplier;
-    var friction = (turnover * COST) + impactCost;
+    var friction = (turnover * COST) + (0.001 * Math.max(1, Math.pow(turnover / 0.2, 1.5)));
 
     var cashRet = 0;
     if (DAILY['SGOV'] && getPriceOnDate(DAILY['SGOV'], prevM) && getPriceOnDate(DAILY['SGOV'], sigM)) {
-      var s0 = getPriceOnDate(DAILY['SGOV'], prevM), s1 = getPriceOnDate(DAILY['SGOV'], sigM);
-      cashRet = s1 / s0 - 1;
+      cashRet = getPriceOnDate(DAILY['SGOV'], sigM) / getPriceOnDate(DAILY['SGOV'], prevM) - 1;
     } else {
-      var cr = getTNXRate(scoreM), cashDivisor = (freq === "d") ? 252 : ((freq === "2") ? 24 : 12);
-      var CASH_FACTOR = 0.7; 
-      cashRet = (cr * CASH_FACTOR) / cashDivisor;
+      var cr = typeof getTNXRate === 'function' ? getTNXRate(scoreM.slice(0, 7)) : 0.04;
+      cashRet = (cr * 0.7) / ((freq === "d") ? 252 : ((freq === "2") ? 24 : 12));
     }
 
     var stockRets = {};
     Object.keys(target).forEach(function(c) {
-      if (c === 'CASH') { 
-        stockRets[c] = { ret: cashRet, w: target[c] }; 
-      } else {
+      if (c === 'CASH') { stockRets[c] = { ret: cashRet, w: target[c] }; } 
+      else {
         var p0 = getPriceOnDate(DAILY[c], prevM), p1 = getPriceOnDate(DAILY[c], sigM);
         stockRets[c] = { ret: (p0 && p1 && p0 > 0) ? (p1 / p0 - 1) : null, w: target[c] };
       }
@@ -1600,35 +1569,29 @@ function runBTcore(mh, mode, decay) {
     var grossRet = 0, validTarget = {}, forcedCash = 0;
     for (var c in target) {
       var w = target[c], rData = stockRets[c];
-      if (rData.ret === null) { forcedCash += w; } 
-      else { grossRet += w * rData.ret; validTarget[c] = w; }
+      if (rData.ret === null) { forcedCash += w; } else { grossRet += w * rData.ret; validTarget[c] = w; }
     }
     if (forcedCash > 0) validTarget['CASH'] = (validTarget['CASH'] || 0) + forcedCash;
-    if (!isFinite(grossRet) || grossRet <= -0.9999) grossRet = -0.9999; 
+    if (!isFinite(grossRet) || grossRet <= -0.999) grossRet = -0.999; 
     
-    // 正確的淨利結算
     var netRet = (1 - friction) * (1 + grossRet) - 1;
     if (typeof decay !== 'undefined' && decay !== null) { netRet += decay; }
 
     nav *= (1 + netRet);
-
     var drifted = {};
-    for (var c in validTarget) {
-      drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet);
-    }
+    for (var c in validTarget) { drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet); }
 
     var b0 = getPriceOnDate(refDaily, prevM), b1 = getPriceOnDate(refDaily, sigM);
     if (b0 && b1 && b0 > 0) bNav *= (1 + (b1 / b0 - 1));
     
     var hCopy = {}; Object.keys(target).forEach(k => hCopy[k] = target[k]);
-    var periodStr = prevM + " ~ " + sigM;
-    records.push({ month: sigM, period: periodStr, nav: nav, bNav: bNav, holdings: hCopy, pRet: netRet, hurdle: hurdle, stockRets: stockRets });
+    records.push({ month: sigM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: hCopy, pRet: netRet, hurdle: hurdle, stockRets: stockRets });
     
-    holdings = drifted;
-    currentHoldings = hCopy; 
+    holdings = drifted; currentHoldings = hCopy; 
   }
   return records.length >= 6 ? records : null;
 }
+
 
 
 
