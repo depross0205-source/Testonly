@@ -1054,51 +1054,55 @@ function updFetchStat(){
   }, 0) / rets.length;
   return Math.sqrt(variance * 252);
 }
-
 function calcMA(bars, dateStr, period) {
   if (!bars || !bars.length) return null;
-  
-  // 1. 尋找「小於等於」該日期的最新一筆 K 棒索引 (解決台美股時差)
-  let idx = -1;
-  for (let i = 0; i < bars.length; i++) {
-    if (bars[i].date <= dateStr) idx = i;
-    else break;
+  var L = 0, R = bars.length - 1;
+  while(L <= R) {
+      var M = (L + R) >> 1;
+      if(bars[M].date === dateStr) { R = M; break; }
+      if(bars[M].date < dateStr) L = M + 1;
+      else R = M - 1;
   }
-  
-  if (idx < period - 1) return null; 
-  
-  // 2. 計算 VWMA (成交量加權移動平均)
-  let sumPriceVol = 0;
-  let sumVol = 0;
-  
-  for (let i = idx - period + 1; i <= idx; i++) {
-    // 🛡️ 機構級防呆：大盤指數或缺漏資料的 Volume 可能是 0 或 null
-    // 遇到無量時，強制給予權重 1 (也就是自動降級成傳統 SMA，防止除以 0 崩潰)
+  if (R < period - 1 || R < 0) return null;
+  let sumPriceVol = 0, sumVol = 0;
+  for (let i = R - period + 1; i <= R; i++) {
     let vol = (bars[i].v && bars[i].v > 0) ? bars[i].v : 1; 
-    
     sumPriceVol += bars[i].c * vol;
     sumVol += vol;
   }
-  
   return sumVol > 0 ? (sumPriceVol / sumVol) : null;
 }
 
 
 
+
 function getPriceOnDate(bars, dateStr) { 
-  if (!bars || !bars.length || dateStr < bars[0].date) return null; 
-  let best = bars[0].c;
-  for(let i=0; i<bars.length; i++) { 
-    if (bars[i].date <= dateStr) best = bars[i].c; 
-    else break; 
+  if (!bars || !bars.length || dateStr < bars[0].date) return null;
+  var L = 0, R = bars.length - 1;
+  while(L <= R) {
+      var M = (L + R) >> 1;
+      if(bars[M].date === dateStr) { R = M; break; }
+      if(bars[M].date < dateStr) L = M + 1;
+      else R = M - 1;
   }
-  return best; 
+  return R >= 0 ? bars[R].c : bars[0].c;
 }
 
-function getPrevWorkDay(bars, dateStr, offset = 5) {
-  if (!bars) return dateStr; let idx = bars.findIndex(b => b.date === dateStr);
-  if (idx < offset) return bars[0].date; return bars[idx - offset].date;
+
+function getPrevWorkDay(bars, dateStr, offset) {
+  var off = offset || 5;
+  if (!bars || !bars.length) return dateStr;
+  var L = 0, R = bars.length - 1;
+  while(L <= R) {
+      var M = (L + R) >> 1;
+      if(bars[M].date === dateStr) { R = M; break; }
+      if(bars[M].date < dateStr) L = M + 1;
+      else R = M - 1;
+  }
+  if (R < off || R < 0) return bars[0] ? bars[0].date : dateStr; 
+  return bars[R - off].date;
 }
+
 
 function isBearishRegime(bars, dateStr, period = 60) {
   let ma = calcMA(bars, dateStr, period), price = getPriceOnDate(bars, dateStr);
@@ -1203,21 +1207,18 @@ async function buildCache() {
   var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : withData[0].c);
   var refDaily = DAILY[masterTicker];
 
-  // 💡 智慧預判核心：精準算出「真正需要計算的日期集合」，拒絕暴力運算浪費！
   var allM = getPreciseRebalanceDates(refDaily, freq);
   var neededDates = new Set();
   
   for (var idx = LAG; idx < allM.length; idx++) {
      var scoreM = allM[idx - LAG];
      if (scoreM) {
-         // 將 Skip Month 的位移也考慮進去，確保回測時絕對找得到資料
          var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM;
          neededDates.add(scoringM);
+         neededDates.add(scoreM); // 確保大盤風控日期有被算進去
      }
   }
-  // 保留最新的一天，供「即時信號」面板使用
   if (refDaily && refDaily.length > 0) neededDates.add(refDaily[refDaily.length - 1].date);
-  
   var targetDates = Array.from(neededDates).sort();
 
   for(var si=0;si<withData.length;si++){
@@ -1229,11 +1230,12 @@ async function buildCache() {
 
     let bIdx = 0;
     targetDates.forEach(function(d) {
-      // 游標快轉：只找小於等於目標日期的最新一筆 K 線
       while(bIdx < bars.length - 1 && bars[bIdx + 1].date <= d) { bIdx++; }
 
       if(bars[bIdx].date <= d && bIdx >= maxL){
-        var cut = bars.slice(0, bIdx+1);
+        // 💡 記憶體救星：不再複製幾千天的陣列，只取計算需要的長度
+        var neededLen = Math.max(260, N_TREND * 2 + 10);
+        var cut = bars.slice(Math.max(0, bIdx + 1 - neededLen), bIdx + 1);
         RAW_SCORES[s.c][d] = {
           rm: typeof rawMom === 'function' ? rawMom(bars, bIdx) : [0,0,0],
           rb: typeof calcBias === 'function' ? calcBias(cut, N_TREND) : 0,
@@ -1254,6 +1256,7 @@ async function buildCache() {
   if(typeof hideL==='function') hideL();
   if(typeof updCacheSt==='function') updCacheSt();
 }
+
 
 
 
@@ -1328,19 +1331,28 @@ function calcCorr(c1, c2, dateStr) {
   var b1 = DAILY[c1], b2 = DAILY[c2];
   if (!b1 || !b2) return 0;
   
-  var i1 = b1.findIndex(b => b.date === dateStr);
-  var i2 = b2.findIndex(b => b.date === dateStr);
+  // 內部專用二分搜尋
+  var findIdx = function(bars, d) {
+     var L = 0, R = bars.length - 1;
+     while(L <= R) {
+         var M = (L + R) >> 1;
+         if(bars[M].date === d) return M;
+         if(bars[M].date < d) L = M + 1;
+         else R = M - 1;
+     }
+     return R;
+  };
+  var i1 = findIdx(b1, dateStr);
+  var i2 = findIdx(b2, dateStr);
   
-  // 確保有足夠的歷史資料 (24 個月 * 每月約 20 個交易日 = 480 天)
-  var requiredDays = CORR_WIN * 20; 
+  var winDays = (typeof CORR_WIN !== 'undefined') ? CORR_WIN : 24;
+  var requiredDays = winDays * 20;
   if (i1 < requiredDays || i2 < requiredDays) return 0;
   
   var r1 = [], r2 = [];
-  // 每隔 20 個交易日取一次樣，計算月報酬率
-  for (var i = 0; i < CORR_WIN; i++) {
+  for (var i = 0; i < winDays; i++) {
     var curr1 = i1 - (i * 20), prev1 = i1 - ((i + 1) * 20);
     var curr2 = i2 - (i * 20), prev2 = i2 - ((i + 1) * 20);
-    
     r1.push(b1[curr1].c / b1[prev1].c - 1);
     r2.push(b2[curr2].c / b2[prev2].c - 1);
   }
@@ -1355,6 +1367,7 @@ function calcCorr(c1, c2, dateStr) {
   return num / Math.sqrt((d1 * d2) || 1);
 }
 
+
 function getBench(dateStr) {
    var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['SPY'] ? 'SPY' : null);
    return masterTicker ? getPriceOnDate(DAILY[masterTicker], dateStr) : null;
@@ -1366,7 +1379,6 @@ function runBTcore(mh, mode, decay) {
   var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
   var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
 
-  // 💡 對標日線完成版：排名緩衝 (Rank Buffer)。日頻給予寬鬆緩衝，沒跌出名單就不換股！
   var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
 
   var stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
@@ -1404,7 +1416,7 @@ function runBTcore(mh, mode, decay) {
 
   var nav = INIT, bNav = INIT, records = [], holdings = { CASH: 1.0 };
   var currentHoldings = {}; 
-  var drifted = {}; // 💡 對標日線完成版：追蹤實盤權重的自然漲跌
+  var drifted = {}; 
   var DEFENSIVE = ['TLT', 'GLD', 'SGOV'];
 
   for (var idx = cS; idx <= cE; idx++) {
@@ -1420,7 +1432,7 @@ function runBTcore(mh, mode, decay) {
     var sc2 = calcAllScores(scoringM); 
     var valid = sc2.filter(function(r) { return r.score !== null && !isNaN(r.score); });
     valid.sort(function(a, b) { return b.score - a.score; });
-    valid.forEach(function(item, i) { item.rank = i; }); // 賦予絕對全局排名標籤
+    valid.forEach(function(item, i) { item.rank = i; }); 
 
     var isMarketBull = true;
     if (regimeOn && RAW_SCORES[masterTicker] && RAW_SCORES[masterTicker][scoreM]) {
@@ -1468,13 +1480,11 @@ function runBTcore(mh, mode, decay) {
     var sel = [];
     function pickFromPool(poolName) {
       var cands = pools[poolName], q = quotas[poolName], picked = 0;
-      // 💡 對標日線完成版：優先保留「未跌出全局 mh + rankBuffer」的舊持股
       var oldCands = cands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (mh + rankBuffer); });
       oldCands.forEach(function(cand) {
         if (picked >= q) return;
         if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) { sel.push(cand); picked++; }
       });
-      // 缺額才從名單中遞補新血
       for (var j = 0; j < cands.length; j++) {
         if (picked >= q) break;
         if (oldCands.includes(cands[j])) continue;
@@ -1490,7 +1500,6 @@ function runBTcore(mh, mode, decay) {
       largeCands.sort(function(a,b) { return b.score - a.score; });
       var totalMax = parseInt(document.getElementById('btH') ? document.getElementById('btH').value : '5') || mh;
       
-      // 💡 大池模式同樣套用排名緩衝
       var largeOldHoldings = largeCands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (totalMax + rankBuffer); });
       largeOldHoldings.forEach(function(cand) {
          if (sel.length >= totalMax) return;
@@ -1519,7 +1528,6 @@ function runBTcore(mh, mode, decay) {
     var exposure = (regimeOn && !isMarketBull) ? (regimeExp / 100) : 1.0;
     var target = {};
 
-    // 💡 權重漂移技術 (Buy & Hold) 對標實盤
     if (!sel.length) { 
       target['CASH'] = 1.0;
     } else {
@@ -1528,7 +1536,6 @@ function runBTcore(mh, mode, decay) {
 
       if (wtMode === 'eq') {
         if (freq === 'd') {
-          // 【日頻 Buy & Hold】舊股不均分，維持自身自然漲跌權重；新股平分剩下的錢
           var newlyAdded = sel.filter(r => !currentHoldings[r.s.c]);
           var retained = sel.filter(r => currentHoldings[r.s.c]);
           var totalRetainedW = 0;
@@ -1542,7 +1549,6 @@ function runBTcore(mh, mode, decay) {
               newlyAdded.forEach(r => { target[r.s.c] = wEach; });
           }
         } else {
-          // 月頻標準等權重
           var lw = (lScale / sel.length) * exposure;
           sel.forEach(function(r) { target[r.s.c] = lw; });
         }
@@ -1552,7 +1558,8 @@ function runBTcore(mh, mode, decay) {
       } else if (wtMode === 'ivol') {
         var volSum = 0;
         var ivolArr = sel.map(function(r) {
-          var v = calcVol(DAILY[r.s.c], scoreM, 60);
+          // 💡 IVOL 修復：直接使用快取算好的波動度，防止動態函數參數衝突而報錯
+          var v = (RAW_SCORES[r.s.c] && RAW_SCORES[r.s.c][scoringM]) ? RAW_SCORES[r.s.c][scoringM].rv : 0.2;
           v = (v && v > 0) ? v : 0.2;
           volSum += 1 / v; return { c: r.s.c, iv: 1 / v };
         });
@@ -1601,7 +1608,6 @@ function runBTcore(mh, mode, decay) {
 
     nav *= (1 + netRet);
     
-    // 💡 結算每日漂移後的新權重，傳遞給明天
     drifted = {};
     for (var c in validTarget) { 
         drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet); 
@@ -1617,6 +1623,7 @@ function runBTcore(mh, mode, decay) {
   }
   return records.length >= 6 ? records : null;
 }
+
 
 
 
