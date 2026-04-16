@@ -1185,18 +1185,16 @@ function rawMom(daily, idx) {
   return score;
 }
 
-
 async function buildCache() {
   const stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : STOCKS.map(c=>({c:c}));
   var withData = stocks.filter(function(s){return DAILY[s.c] && DAILY[s.c].length > 0;});
   if(!withData.length){ if(typeof updCacheSt==='function') updCacheSt(); return; }
-  if(typeof showL==='function') showL('Building V2.0 Cache (Full History)...');
+  if(typeof showL==='function') showL('Building Ultimate Cache (Full History)...');
   RAW_SCORES={};
 
-  // 💡 [修正重點]: 補回遺漏的 N_TREND (趨勢天數)，救回你的多因子指標！
+  // 💡 對標主程式：精準抓取趨勢天數，確保 Bias, Vol, Kbar 等多因子滿血運作
   var nTrendEl = document.getElementById('nTrend') || document.getElementById('btNTrend');
   var N_TREND = parseInt(nTrendEl ? nTrendEl.value : '60') || 60;
-
   var maxL = Math.max(240, MOM_PERIODS[0], MOM_PERIODS[1], MOM_PERIODS[2]);
 
   for(var si=0;si<withData.length;si++){
@@ -1206,6 +1204,7 @@ async function buildCache() {
     var bars=DAILY[s.c];
     RAW_SCORES[s.c]={};
 
+    // 歷史上每一天都建立快取，確保日頻平移與 Skip Month 100% 抓得到資料
     for(var i = maxL; i < bars.length; i++){
         var d = bars[i].date;
         var cut = bars.slice(0, i+1);
@@ -1228,6 +1227,7 @@ async function buildCache() {
   if(typeof hideL==='function') hideL();
   if(typeof updCacheSt==='function') updCacheSt();
 }
+
 
 
 
@@ -1337,31 +1337,33 @@ function runBTcore(mh, mode, decay) {
   if (!CACHE_BUILT) return null;
   var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
   var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
-  var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2;
+
+  // 日頻給予排名緩衝，月頻較嚴格
+  var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
 
   var stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
   var withData = stocks.filter(function(s) { return DAILY[s.c]; });
   if (withData.length < 3) return null;
 
   var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : 'SPY');
-  var refDaily = DAILY[masterTicker];
+  var refDaily = DAILY[masterTicker]; 
   if (!refDaily) return null;
-
+  
   var allM = getPreciseRebalanceDates(refDaily, freq);
   var rawS = document.getElementById('btS') ? (document.getElementById('btS').value || '').trim().slice(0, 10) : '';
   var rawE = document.getElementById('btE') ? (document.getElementById('btE').value || '').trim().slice(0, 10) : '';
-
-  var MIN = Math.max(1, LAG + 1), cS = MIN;
+  
+  var MIN = Math.max(1, LAG + 1), cS = MIN; 
   if (rawS) { for (var i = cS; i < allM.length; i++) { if (allM[i] >= rawS) { cS = i; break; } } }
   var cE = allM.length - 1;
   if (rawE) { for (var i2 = cE; i2 >= cS; i2--) { if (allM[i2] <= rawE) { cE = i2; break; } } }
   if (cS > cE) return null;
-
+  
   var INIT = gv('btCap') || 100000;
   var costInput = document.getElementById('btCost') || document.getElementById('btC');
   var COST = (parseFloat(costInput ? costInput.value : 0.3) || 0) / 100;
   var ct = typeof CORR_T !== 'undefined' ? CORR_T : 0.75;
-
+  
   var shortN = parseInt(document.getElementById('btSN') ? document.getElementById('btSN').value : '0') || 0;
   var capModeEl = document.querySelector('input[name="capMode"]:checked');
   var capMode = capModeEl ? capModeEl.value : 'neutral';
@@ -1373,24 +1375,25 @@ function runBTcore(mh, mode, decay) {
   var regimeExp = gv('btRegimeExp') || 50;
 
   var nav = INIT, bNav = INIT, records = [], holdings = { CASH: 1.0 };
-  var currentHoldings = {};
+  var currentHoldings = {}; 
+  var drifted = {}; // 💡 對標日線版：精準追蹤實盤權重自然漲跌
   var DEFENSIVE = ['TLT', 'GLD', 'SGOV'];
 
   for (var idx = cS; idx <= cE; idx++) {
-    var sigM = allM[idx];
-    var prevM = allM[idx - 1];
-    var scoreM = allM[idx - 1 - LAG];
+    var sigM = allM[idx];       
+    var prevM = allM[idx - 1];  
+    var scoreM = allM[idx - 1 - LAG]; 
     if (!scoreM) continue;
-
+    
     var hurdle = getHurdle(scoreM);
     var skipMoOn = !!(document.getElementById('btSkipMo') && document.getElementById('btSkipMo').checked);
-    var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM;
-
-    // 完美接軌：透過你原始的 calcAllScores 算分，Kbar與Bias因子滿血回歸
-    var sc2 = calcAllScores(scoringM);
+    var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM; 
+    
+    // 💡 對標主程式：滿血呼叫 calcAllScores，多因子排名正式啟動
+    var sc2 = calcAllScores(scoringM); 
     var valid = sc2.filter(function(r) { return r.score !== null && !isNaN(r.score); });
     valid.sort(function(a, b) { return b.score - a.score; });
-    valid.forEach(function(item, i) { item.rank = i; });
+    valid.forEach(function(item, i) { item.rank = i; }); 
 
     var isMarketBull = true;
     if (regimeOn && RAW_SCORES[masterTicker] && RAW_SCORES[masterTicker][scoreM]) {
@@ -1401,18 +1404,19 @@ function runBTcore(mh, mode, decay) {
       var b0x = getPriceOnDate(refDaily, prevM);
       var b1x = getPriceOnDate(refDaily, sigM);
       if (b0x && b1x && b0x > 0) bNav *= (1 + (b1x / b0x - 1));
-      records.push({ month: sigM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: { CASH: 1.0 }, pRet: 0, hurdle: hurdle, stockRets: {} });
-      holdings = { CASH: 1.0 }; currentHoldings = { CASH: 1.0 };
+      // 💡 日期校準：統一使用 prevM 作為標籤，消滅 UI 錯位
+      records.push({ month: prevM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: { CASH: 1.0 }, pRet: 0, hurdle: hurdle, stockRets: {} });
+      holdings = { CASH: 1.0 }; currentHoldings = { CASH: 1.0 }; drifted = { CASH: 1.0 };
       continue;
     }
-
+   
     var qTW = parseInt(document.getElementById('btQuotaTW') ? document.getElementById('btQuotaTW').value : '2') || 0;
     var qUS = parseInt(document.getElementById('btQuotaUS') ? document.getElementById('btQuotaUS').value : '2') || 0;
     var qETF = parseInt(document.getElementById('btQuotaETF') ? document.getElementById('btQuotaETF').value : '1') || 0;
     var quotas = { 'tw': qTW, 'us': qUS, 'etf': qETF };
     var totalQuota = qTW + qUS + qETF;
     var pools = { 'tw': [], 'us': [], 'etf': [] };
-
+    
     var useMA60 = document.getElementById('ma60Filter') ? document.getElementById('ma60Filter').value === 'on' : true;
     var exitMap = {};
 
@@ -1451,13 +1455,13 @@ function runBTcore(mh, mode, decay) {
     }
 
     const modePool = document.getElementById('poolMode') ? document.getElementById('poolMode').value : 'small';
-
+    
     if (modePool === 'large') {
       var largeCands = [];
       ['tw','us','etf'].forEach(function(p) { largeCands.push.apply(largeCands, pools[p]); });
       largeCands.sort(function(a,b) { return b.score - a.score; });
       var totalMax = parseInt(document.getElementById('btH') ? document.getElementById('btH').value : '5') || mh;
-
+      
       var largeOldHoldings = largeCands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (totalMax + rankBuffer); });
       largeOldHoldings.forEach(function(cand) {
          if (sel.length >= totalMax) return;
@@ -1466,7 +1470,7 @@ function runBTcore(mh, mode, decay) {
 
       for (var k = 0; k < largeCands.length; k++) {
         if (sel.length >= totalMax) break;
-        if (largeOldHoldings.includes(largeCands[k])) continue;
+        if (largeOldHoldings.includes(largeCands[k])) continue; 
         if (sel.every(function(x) { return Math.abs(calcCorr(largeCands[k].s.c, x.s.c, scoreM)) < ct; })) sel.push(largeCands[k]);
       }
     } else {
@@ -1484,45 +1488,44 @@ function runBTcore(mh, mode, decay) {
     }
 
     var exposure = (regimeOn && !isMarketBull) ? (regimeExp / 100) : 1.0;
-
-    var selS = [];
-    if (shortN > 0 && sel.length > 0) {
-      var longMap = {};
-      sel.forEach(function(r) { longMap[r.s.c] = 1; });
-      var sCands = valid.filter(function(r) { return !longMap[r.s.c]; });
-      if (shortTSF) sCands = sCands.filter(function(r) { return r.r240 !== null && r.r240 < 0; });
-      sCands.sort(function(a, b) { return a.score - b.score; });
-      for (var ks = 0; ks < sCands.length && selS.length < shortN; ks++) {
-        if (selS.every(function(x) { return Math.abs(calcCorr(sCands[ks].s.c, x.s.c, scoreM)) < ct; })) selS.push(sCands[ks]);
-      }
-    }
-
     var target = {};
-    if (!sel.length) {
+
+    // 💡 對標日線版：Buy & Hold 權重漂移技術，拒絕每日無腦再平衡
+    if (!sel.length) { 
       target['CASH'] = 1.0;
     } else {
       var is1330 = capMode === '1330';
-      var lScale = is1330 ? 1.0 : 0.5, sScale = is1330 ? 0.3 : 0.5;
-      if (wtMode === 'rank') {
-        var ldenom = sel.length * (sel.length + 1) / 2;
-        sel.forEach(function(r, i) { target[r.s.c] = lScale * ((sel.length - i) / ldenom) * exposure; });
-      } else {
-        if (wtMode === 'ivol') {
-          var volSum = 0;
-          var ivolArr = sel.map(function(r) {
-            var v = calcVol(DAILY[r.s.c], scoreM, 60);
-            v = (v && v > 0) ? v : 0.2;
-            volSum += 1 / v; return { c: r.s.c, iv: 1 / v };
+      var lScale = is1330 ? 1.0 : 0.5;
+
+      if (wtMode === 'eq') {
+        if (freq === 'd') {
+          var newlyAdded = sel.filter(r => !currentHoldings[r.s.c]);
+          var retained = sel.filter(r => currentHoldings[r.s.c]);
+          var totalRetainedW = 0;
+          
+          retained.forEach(r => { 
+              target[r.s.c] = drifted[r.s.c] || (lScale / sel.length); 
+              totalRetainedW += target[r.s.c]; 
           });
-          ivolArr.forEach(function(x) { target[x.c] = (lScale * x.iv / volSum) * exposure; });
+          if (newlyAdded.length > 0) {
+              var wEach = Math.max(0, (lScale - totalRetainedW) / newlyAdded.length);
+              newlyAdded.forEach(r => { target[r.s.c] = wEach; });
+          }
         } else {
           var lw = (lScale / sel.length) * exposure;
           sel.forEach(function(r) { target[r.s.c] = lw; });
         }
-      }
-      if (selS.length > 0) {
-        var sdenom = wtMode === 'rank' ? selS.length * (selS.length + 1) / 2 : selS.length;
-        selS.forEach(function(r, i) { target[r.s.c] = -sScale * (mode === 'rank' ? ((selS.length - i) / sdenom) : 1 / sdenom) * exposure; });
+      } else if (wtMode === 'rank') {
+        var ldenom = sel.length * (sel.length + 1) / 2;
+        sel.forEach(function(r, i) { target[r.s.c] = lScale * ((sel.length - i) / ldenom) * exposure; });
+      } else if (wtMode === 'ivol') {
+        var volSum = 0;
+        var ivolArr = sel.map(function(r) {
+          var v = calcVol(DAILY[r.s.c], scoreM, 60);
+          v = (v && v > 0) ? v : 0.2;
+          volSum += 1 / v; return { c: r.s.c, iv: 1 / v };
+        });
+        ivolArr.forEach(function(x) { target[x.c] = (lScale * x.iv / volSum) * exposure; });
       }
     }
 
@@ -1535,10 +1538,9 @@ function runBTcore(mh, mode, decay) {
     allT.forEach(function(c) { turnover += Math.abs((target[c] || 0) - (currentHoldings[c] || 0)); });
     turnover /= 2;
 
-    // 回歸標準摩擦成本計算
     var friction = turnover * COST;
-
     var cashRet = 0;
+
     if (DAILY['SGOV'] && getPriceOnDate(DAILY['SGOV'], prevM) && getPriceOnDate(DAILY['SGOV'], sigM)) {
       cashRet = getPriceOnDate(DAILY['SGOV'], sigM) / getPriceOnDate(DAILY['SGOV'], prevM) - 1;
     } else {
@@ -1548,7 +1550,7 @@ function runBTcore(mh, mode, decay) {
 
     var stockRets = {};
     Object.keys(target).forEach(function(c) {
-      if (c === 'CASH') { stockRets[c] = { ret: cashRet, w: target[c] }; }
+      if (c === 'CASH') { stockRets[c] = { ret: cashRet, w: target[c] }; } 
       else {
         var p0 = getPriceOnDate(DAILY[c], prevM), p1 = getPriceOnDate(DAILY[c], sigM);
         stockRets[c] = { ret: (p0 && p1 && p0 > 0) ? (p1 / p0 - 1) : null, w: target[c] };
@@ -1561,25 +1563,30 @@ function runBTcore(mh, mode, decay) {
       if (rData.ret === null) { forcedCash += w; } else { grossRet += w * rData.ret; validTarget[c] = w; }
     }
     if (forcedCash > 0) validTarget['CASH'] = (validTarget['CASH'] || 0) + forcedCash;
-    if (!isFinite(grossRet) || grossRet <= -0.999) grossRet = -0.999;
-
+    if (!isFinite(grossRet) || grossRet <= -0.999) grossRet = -0.999; 
+    
     var netRet = (1 - friction) * (1 + grossRet) - 1;
     if (typeof decay !== 'undefined' && decay !== null) { netRet += decay; }
 
     nav *= (1 + netRet);
-    var drifted = {};
-    for (var c in validTarget) { drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet); }
+    
+    // 💡 精準結算實際權重，供下一期實盤漂移使用
+    drifted = {};
+    for (var c in validTarget) { 
+        drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet); 
+    }
 
     var b0 = getPriceOnDate(refDaily, prevM), b1 = getPriceOnDate(refDaily, sigM);
     if (b0 && b1 && b0 > 0) bNav *= (1 + (b1 / b0 - 1));
-
+    
     var hCopy = {}; Object.keys(target).forEach(k => hCopy[k] = target[k]);
-    records.push({ month: sigM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: hCopy, pRet: netRet, hurdle: hurdle, stockRets: stockRets });
-
-    holdings = drifted; currentHoldings = hCopy;
+    records.push({ month: prevM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: hCopy, pRet: netRet, hurdle: hurdle, stockRets: stockRets });
+    
+    holdings = drifted; currentHoldings = hCopy; 
   }
   return records.length >= 6 ? records : null;
 }
+
 
 // --- 替換原本的 kpi 函數 ---
 function kpi(records, init) {
