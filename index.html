@@ -496,11 +496,12 @@ tr:hover{background:var(--sf2)}
     <div class="ct">&#x8A55;&#x5206;&#x6B0A;&#x91CD; <span style="font-size:10px;color:var(--gr)">&#x6539;&#x5B8C;&#x6B0A;&#x91CD;&#x76F4;&#x63A5;&#x91CD;&#x8A08;</span></div>
     <div class="g3">
             <div class="fi" style="grid-column:1/-1">
-        <label>&#x52D5;&#x80FD;&#x5468;&#x671F;&#x7D44;&#x5408;</label>
-        <select id="momPeriodSet" onchange="updateMomPeriods()">
-          <option value="0">240 / 120 / 60 &#x5929; (&#x9577;&#x671F;)</option>
-          <option value="1">120 / 60 / 30 &#x5929; (&#x4E2D;&#x671F;)</option>
+               <select id="momPeriodSet" onchange="updateMomPeriods()">
+          <option value="0">長線 (240/120/60 天)</option>
+          <option value="1">中短 (120/60/30 天)</option>
+          <option value="2">極短 (60/20/5 天)</option>
         </select>
+
       </div>
       <div class="fi"><label id="zW_long_lbl">z&#x9577;(240d) %</label><input type="number" id="zW_long" value="50" min="0" max="100" oninput="normMomWeights('long')"></div>
       <div class="fi"><label id="zW_mid_lbl">z&#x4E2D;(120d) % &#x56FA;</label><input type="number" id="zW_mid" value="30" min="0" max="100" oninput="normMomWeights('mid')"></div>
