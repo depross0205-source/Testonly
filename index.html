@@ -1379,6 +1379,7 @@ function runBTcore(mh, mode, decay) {
   var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
   var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
 
+  // 排名緩衝 (Rank Buffer)
   var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
 
   var stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
@@ -1454,7 +1455,6 @@ function runBTcore(mh, mode, decay) {
     var quotas = { 'tw': qTW, 'us': qUS, 'etf': qETF };
     var totalQuota = qTW + qUS + qETF;
     var pools = { 'tw': [], 'us': [], 'etf': [] };
-    
     var useMA60 = document.getElementById('ma60Filter') ? document.getElementById('ma60Filter').value === 'on' : true;
     var exitMap = {};
 
@@ -1474,7 +1474,6 @@ function runBTcore(mh, mode, decay) {
       if (r.r240 === null || r.r240 <= hurdle || DEFENSIVE.indexOf(r.s.c) !== -1 || exitMap[r.s.c]) return;
       if (pools[r.s.pool]) pools[r.s.pool].push(r);
     });
-
     ['tw', 'us', 'etf'].forEach(function(p) { pools[p].sort(function(a,b) { return b.score - a.score; }); });
 
     var sel = [];
@@ -1493,19 +1492,16 @@ function runBTcore(mh, mode, decay) {
     }
 
     const modePool = document.getElementById('poolMode') ? document.getElementById('poolMode').value : 'small';
-    
     if (modePool === 'large') {
       var largeCands = [];
       ['tw','us','etf'].forEach(function(p) { largeCands.push.apply(largeCands, pools[p]); });
       largeCands.sort(function(a,b) { return b.score - a.score; });
       var totalMax = parseInt(document.getElementById('btH') ? document.getElementById('btH').value : '5') || mh;
-      
       var largeOldHoldings = largeCands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (totalMax + rankBuffer); });
       largeOldHoldings.forEach(function(cand) {
          if (sel.length >= totalMax) return;
          if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) sel.push(cand);
       });
-
       for (var k = 0; k < largeCands.length; k++) {
         if (sel.length >= totalMax) break;
         if (largeOldHoldings.includes(largeCands[k])) continue; 
@@ -1533,37 +1529,46 @@ function runBTcore(mh, mode, decay) {
     } else {
       var is1330 = capMode === '1330';
       var lScale = is1330 ? 1.0 : 0.5;
-
+      
+      // 💡 計算基準理論權重 (Theoretical Weights)
+      var baseTarget = {};
       if (wtMode === 'eq') {
-        if (freq === 'd') {
-          var newlyAdded = sel.filter(r => !currentHoldings[r.s.c]);
-          var retained = sel.filter(r => currentHoldings[r.s.c]);
-          var totalRetainedW = 0;
-          
-          retained.forEach(r => { 
-              target[r.s.c] = drifted[r.s.c] || (lScale / sel.length); 
-              totalRetainedW += target[r.s.c]; 
-          });
-          if (newlyAdded.length > 0) {
-              var wEach = Math.max(0, (lScale - totalRetainedW) / newlyAdded.length);
-              newlyAdded.forEach(r => { target[r.s.c] = wEach; });
-          }
-        } else {
-          var lw = (lScale / sel.length) * exposure;
-          sel.forEach(function(r) { target[r.s.c] = lw; });
-        }
+        var lw = (lScale / sel.length) * exposure;
+        sel.forEach(function(r) { baseTarget[r.s.c] = lw; });
       } else if (wtMode === 'rank') {
         var ldenom = sel.length * (sel.length + 1) / 2;
-        sel.forEach(function(r, i) { target[r.s.c] = lScale * ((sel.length - i) / ldenom) * exposure; });
+        sel.forEach(function(r, i) { baseTarget[r.s.c] = lScale * ((sel.length - i) / ldenom) * exposure; });
       } else if (wtMode === 'ivol') {
         var volSum = 0;
         var ivolArr = sel.map(function(r) {
-          // 💡 IVOL 修復：直接使用快取算好的波動度，防止動態函數參數衝突而報錯
           var v = (RAW_SCORES[r.s.c] && RAW_SCORES[r.s.c][scoringM]) ? RAW_SCORES[r.s.c][scoringM].rv : 0.2;
           v = (v && v > 0) ? v : 0.2;
           volSum += 1 / v; return { c: r.s.c, iv: 1 / v };
         });
-        ivolArr.forEach(function(x) { target[x.c] = (lScale * x.iv / volSum) * exposure; });
+        ivolArr.forEach(function(x) { baseTarget[x.c] = (lScale * x.iv / volSum) * exposure; });
+      }
+
+      // 💡 終極統一權重漂移：不論 UI 權重模式為何，日頻必定貫徹實盤 Buy & Hold！
+      if (freq === 'd') {
+        var newlyAdded = sel.filter(r => !currentHoldings[r.s.c]);
+        var retained = sel.filter(r => currentHoldings[r.s.c]);
+        var totalRetainedW = 0;
+        
+        retained.forEach(r => { 
+            target[r.s.c] = drifted[r.s.c] || baseTarget[r.s.c]; 
+            totalRetainedW += target[r.s.c]; 
+        });
+        
+        if (newlyAdded.length > 0) {
+            var newBaseSum = 0;
+            newlyAdded.forEach(r => { newBaseSum += baseTarget[r.s.c]; });
+            var availableCash = Math.max(0, lScale - totalRetainedW);
+            newlyAdded.forEach(r => { 
+                target[r.s.c] = newBaseSum > 0 ? availableCash * (baseTarget[r.s.c] / newBaseSum) : (availableCash / newlyAdded.length); 
+            });
+        }
+      } else {
+        target = baseTarget; // 月頻回歸標準再平衡
       }
     }
 
@@ -1603,11 +1608,12 @@ function runBTcore(mh, mode, decay) {
     if (forcedCash > 0) validTarget['CASH'] = (validTarget['CASH'] || 0) + forcedCash;
     if (!isFinite(grossRet) || grossRet <= -0.999) grossRet = -0.999; 
     
+    // 精確扣除當期手續費
     var netRet = (1 - friction) * (1 + grossRet) - 1;
     if (typeof decay !== 'undefined' && decay !== null) { netRet += decay; }
-
     nav *= (1 + netRet);
     
+    // 結算新權重漂移
     drifted = {};
     for (var c in validTarget) { 
         drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet); 
@@ -1619,12 +1625,10 @@ function runBTcore(mh, mode, decay) {
     var hCopy = {}; Object.keys(target).forEach(k => hCopy[k] = target[k]);
     records.push({ month: prevM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: hCopy, pRet: netRet, hurdle: hurdle, stockRets: stockRets });
     
-    holdings = drifted; currentHoldings = hCopy; 
+    holdings = drifted; currentHoldings = drifted; 
   }
   return records.length >= 6 ? records : null;
 }
-
-
 
 
 // --- 替換原本的 kpi 函數 ---
