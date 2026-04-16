@@ -1074,7 +1074,18 @@ function calcMA(bars, dateStr, period) {
 }
 
 
-
+// 💡 取得開盤價 (防呆機制：若無開盤價則退回至收盤價)
+function getOpenPrice(bars, date) {
+  if (!bars) return null;
+  var L = 0, R = bars.length - 1;
+  while(L <= R) {
+      var M = (L + R) >> 1;
+      if(bars[M].date === date) return bars[M].o || bars[M].c;
+      if(bars[M].date < date) L = M + 1;
+      else R = M - 1;
+  }
+  return null;
+}
 
 function getPriceOnDate(bars, dateStr) { 
   if (!bars || !bars.length || dateStr < bars[0].date) return null;
@@ -1378,8 +1389,6 @@ function runBTcore(mh, mode, decay) {
   if (!CACHE_BUILT) return null;
   var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
   var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
-
-  // 排名緩衝 (Rank Buffer)
   var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
 
   var stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
@@ -1401,16 +1410,19 @@ function runBTcore(mh, mode, decay) {
   if (cS > cE) return null;
   
   var INIT = gv('btCap') || 100000;
-  var costInput = document.getElementById('btCost') || document.getElementById('btC');
-  var COST = (parseFloat(costInput ? costInput.value : 0.3) || 0) / 100;
-  var ct = typeof CORR_T !== 'undefined' ? CORR_T : 0.75;
   
+  // 💡 Research-Grade 實戰成本模型
+  var feeInput = document.getElementById('btCost') || document.getElementById('btC');
+  var FEE = (parseFloat(feeInput ? feeInput.value : 0.3) || 0) / 100;
+  var SLIPPAGE = 0.002; // 固定單邊滑價 0.2%
+  var EXEC_COST = FEE + SLIPPAGE; // 傳遞給明細使用
+  
+  var ct = typeof CORR_T !== 'undefined' ? CORR_T : 0.75;
   var shortN = parseInt(document.getElementById('btSN') ? document.getElementById('btSN').value : '0') || 0;
   var capModeEl = document.querySelector('input[name="capMode"]:checked');
   var capMode = capModeEl ? capModeEl.value : 'neutral';
   var wtModeEl = document.querySelector('input[name="wtMode"]:checked');
   var wtMode = wtModeEl ? wtModeEl.value : 'eq';
-
   var shortTSF = !!(document.getElementById('btSTSF') && document.getElementById('btSTSF').checked);
   var regimeOn = document.getElementById('btRegime') && document.getElementById('btRegime').value === 'on';
   var regimeExp = gv('btRegimeExp') || 50;
@@ -1419,6 +1431,7 @@ function runBTcore(mh, mode, decay) {
   var currentHoldings = {}; 
   var drifted = {}; 
   var DEFENSIVE = ['TLT', 'GLD', 'SGOV'];
+  var dailyEquityCurve = []; 
 
   for (var idx = cS; idx <= cE; idx++) {
     var sigM = allM[idx];       
@@ -1440,21 +1453,13 @@ function runBTcore(mh, mode, decay) {
         isMarketBull = RAW_SCORES[masterTicker][scoreM].rm[1] > 0;
     }
 
-    if (valid.length < 5) {
-      var b0x = getPriceOnDate(refDaily, prevM);
-      var b1x = getPriceOnDate(refDaily, sigM);
-      if (b0x && b1x && b0x > 0) bNav *= (1 + (b1x / b0x - 1));
-      records.push({ month: prevM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: { CASH: 1.0 }, pRet: 0, hurdle: hurdle, stockRets: {} });
-      holdings = { CASH: 1.0 }; currentHoldings = { CASH: 1.0 }; drifted = { CASH: 1.0 };
-      continue;
-    }
-   
     var qTW = parseInt(document.getElementById('btQuotaTW') ? document.getElementById('btQuotaTW').value : '2') || 0;
     var qUS = parseInt(document.getElementById('btQuotaUS') ? document.getElementById('btQuotaUS').value : '2') || 0;
     var qETF = parseInt(document.getElementById('btQuotaETF') ? document.getElementById('btQuotaETF').value : '1') || 0;
     var quotas = { 'tw': qTW, 'us': qUS, 'etf': qETF };
     var totalQuota = qTW + qUS + qETF;
     var pools = { 'tw': [], 'us': [], 'etf': [] };
+    
     var useMA60 = document.getElementById('ma60Filter') ? document.getElementById('ma60Filter').value === 'on' : true;
     var exitMap = {};
 
@@ -1474,6 +1479,7 @@ function runBTcore(mh, mode, decay) {
       if (r.r240 === null || r.r240 <= hurdle || DEFENSIVE.indexOf(r.s.c) !== -1 || exitMap[r.s.c]) return;
       if (pools[r.s.pool]) pools[r.s.pool].push(r);
     });
+
     ['tw', 'us', 'etf'].forEach(function(p) { pools[p].sort(function(a,b) { return b.score - a.score; }); });
 
     var sel = [];
@@ -1491,27 +1497,9 @@ function runBTcore(mh, mode, decay) {
       }
     }
 
-    const modePool = document.getElementById('poolMode') ? document.getElementById('poolMode').value : 'small';
-    if (modePool === 'large') {
-      var largeCands = [];
-      ['tw','us','etf'].forEach(function(p) { largeCands.push.apply(largeCands, pools[p]); });
-      largeCands.sort(function(a,b) { return b.score - a.score; });
-      var totalMax = parseInt(document.getElementById('btH') ? document.getElementById('btH').value : '5') || mh;
-      var largeOldHoldings = largeCands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (totalMax + rankBuffer); });
-      largeOldHoldings.forEach(function(cand) {
-         if (sel.length >= totalMax) return;
-         if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) sel.push(cand);
-      });
-      for (var k = 0; k < largeCands.length; k++) {
-        if (sel.length >= totalMax) break;
-        if (largeOldHoldings.includes(largeCands[k])) continue; 
-        if (sel.every(function(x) { return Math.abs(calcCorr(largeCands[k].s.c, x.s.c, scoreM)) < ct; })) sel.push(largeCands[k]);
-      }
-    } else {
-      pickFromPool('us'); pickFromPool('tw'); pickFromPool('etf');
-    }
+    pickFromPool('us'); pickFromPool('tw'); pickFromPool('etf');
 
-    var slots = (modePool === 'large' ? (parseInt(document.getElementById('btH').value)||mh) : totalQuota) - sel.length;
+    var slots = totalQuota - sel.length;
     if (slots > 0) {
       var defCands = sc2.filter(function(r) {
         if (r.r240 === null) return false;
@@ -1527,10 +1515,13 @@ function runBTcore(mh, mode, decay) {
     if (!sel.length) { 
       target['CASH'] = 1.0;
     } else {
-      var is1330 = capMode === '1330';
-      var lScale = is1330 ? 1.0 : 0.5;
+      var lScale = 1.0, sScale = 0.0;
+      if (shortN > 0) {
+          var is1330 = capMode === '1330';
+          lScale = is1330 ? 1.0 : 0.5;
+          sScale = is1330 ? 0.3 : 0.5;
+      }
       
-      // 💡 計算基準理論權重 (Theoretical Weights)
       var baseTarget = {};
       if (wtMode === 'eq') {
         var lw = (lScale / sel.length) * exposure;
@@ -1548,7 +1539,6 @@ function runBTcore(mh, mode, decay) {
         ivolArr.forEach(function(x) { baseTarget[x.c] = (lScale * x.iv / volSum) * exposure; });
       }
 
-      // 💡 終極統一權重漂移：不論 UI 權重模式為何，日頻必定貫徹實盤 Buy & Hold！
       if (freq === 'd') {
         var newlyAdded = sel.filter(r => !currentHoldings[r.s.c]);
         var retained = sel.filter(r => currentHoldings[r.s.c]);
@@ -1568,7 +1558,23 @@ function runBTcore(mh, mode, decay) {
             });
         }
       } else {
-        target = baseTarget; // 月頻回歸標準再平衡
+        target = baseTarget; 
+      }
+
+      var selS = [];
+      if (shortN > 0 && sel.length > 0) {
+        var longMap = {};
+        sel.forEach(function(r) { longMap[r.s.c] = 1; });
+        var sCands = valid.filter(function(r) { return !longMap[r.s.c]; });
+        if (shortTSF) sCands = sCands.filter(function(r) { return r.r240 !== null && r.r240 < 0; });
+        sCands.sort(function(a, b) { return a.score - b.score; });
+        for (var ks = 0; ks < sCands.length && selS.length < shortN; ks++) {
+          if (selS.every(function(x) { return Math.abs(calcCorr(sCands[ks].s.c, x.s.c, scoreM)) < ct; })) selS.push(sCands[ks]);
+        }
+      }
+      if (selS.length > 0) {
+        var sdenom = wtMode === 'rank' ? selS.length * (selS.length + 1) / 2 : selS.length;
+        selS.forEach(function(r, i) { target[r.s.c] = -sScale * (wtMode === 'rank' ? ((selS.length - i) / sdenom) : 1 / sdenom) * exposure; });
       }
     }
 
@@ -1576,60 +1582,156 @@ function runBTcore(mh, mode, decay) {
     var cashW = 1.0 - totalW;
     if (cashW > 0.001) target['CASH'] = (target['CASH'] || 0) + cashW;
 
-    var turnover = 0;
-    var allT = new Set([...Object.keys(currentHoldings), ...Object.keys(target)]);
-    allT.forEach(function(c) { turnover += Math.abs((target[c] || 0) - (currentHoldings[c] || 0)); });
-    turnover /= 2;
+    // 💡 建立區間逐日運算 (Daily MTM Pipeline)
+    var dStartIdx = refDaily.findIndex(x => x.date === prevM);
+    var dEndIdx = refDaily.findIndex(x => x.date === sigM);
+    if (dStartIdx === -1 || dEndIdx === -1) continue;
 
-    var friction = turnover * COST;
-    var cashRet = 0;
+    var runningNav = nav; 
+    var runningDrift = Object.assign({}, drifted); 
+    
+    for (var di = dStartIdx + 1; di <= dEndIdx; di++) {
+        var today = refDaily[di].date;
+        var yesterday = refDaily[di-1].date;
+        var dailyGrossRet = 0;
+        
+        // 保守無風險現金利率 (強制 0%)
+        var cr = typeof getTNXRate === 'function' ? getTNXRate(today.slice(0, 7)) : 0.00;
+        var baseCashDailyRet = (cr * 0.7) / 252;
 
-    if (DAILY['SGOV'] && getPriceOnDate(DAILY['SGOV'], prevM) && getPriceOnDate(DAILY['SGOV'], sigM)) {
-      cashRet = getPriceOnDate(DAILY['SGOV'], sigM) / getPriceOnDate(DAILY['SGOV'], prevM) - 1;
+        if (di === dStartIdx + 1) {
+            // 🚀 機構級 T+1 交易日執行引擎 (用 Open 成交 + 雙邊滑價)
+            var execTurnover = 0;
+            var newWeights = {};
+            var allAssets = new Set([...Object.keys(runningDrift), ...Object.keys(target)]);
+
+            allAssets.forEach(function(c) {
+                var w_old = runningDrift[c] || 0;
+                var w_new = target[c] || 0;
+                var deltaW = w_new - w_old;
+
+                if (Math.abs(deltaW) < 1e-6) {
+                    // 未換手，計算 Close-to-Close
+                    if (c === 'CASH') {
+                        dailyGrossRet += w_old * baseCashDailyRet;
+                        newWeights[c] = w_old * (1 + baseCashDailyRet);
+                    } else {
+                        var pT_hold = getPriceOnDate(DAILY[c], today);
+                        var pT1_hold = getPriceOnDate(DAILY[c], yesterday);
+                        var cRet_hold = (pT1_hold && pT_hold) ? (pT_hold / pT1_hold - 1) : 0;
+                        dailyGrossRet += w_old * cRet_hold;
+                        newWeights[c] = w_old * (1 + cRet_hold);
+                    }
+                    return;
+                }
+
+                execTurnover += Math.abs(deltaW);
+
+                if (c !== 'CASH') {
+                    var bars = DAILY[c];
+                    // ✅ 用 OPEN 成交（避免 Look-ahead Bias）
+                    var openP = getOpenPrice(bars, today) || getPriceOnDate(bars, yesterday); 
+                    var closeP = getPriceOnDate(bars, today);
+
+                    if (openP && closeP && openP > 0) {
+                        // ✅ 簡化 slippage（與交易方向有關）
+                        var slip = SLIPPAGE * (deltaW > 0 ? 1 : -1);
+                        var execPrice = openP * (1 + slip);
+                        var ret = (closeP / execPrice - 1);
+                        dailyGrossRet += w_new * ret;
+                        newWeights[c] = w_new * (1 + ret);
+                    } else {
+                        newWeights[c] = w_new;
+                    }
+                } else {
+                    dailyGrossRet += w_new * baseCashDailyRet;
+                    newWeights[c] = w_new * (1 + baseCashDailyRet);
+                }
+            });
+
+            execTurnover /= 2;
+
+            // ✅ 成本只用 turnover × fee（ NAV 扣減）
+            var feeCost = execTurnover * FEE;
+            dailyGrossRet -= feeCost;
+
+            // Normalize weights
+            var total = 0;
+            Object.values(newWeights).forEach(v => total += v);
+            if(total > 0) Object.keys(newWeights).forEach(c => newWeights[c] /= total);
+
+            runningDrift = newWeights;
+
+        } else {
+            // 🛑 非交易日，單純 Close-to-Close MTM
+            var nextDrift = {};
+            Object.keys(runningDrift).forEach(function(c) {
+                var w = runningDrift[c];
+                if (c === 'CASH') {
+                    dailyGrossRet += w * baseCashDailyRet;
+                    nextDrift[c] = w * (1 + baseCashDailyRet);
+                } else {
+                    var pT = getPriceOnDate(DAILY[c], today);
+                    var pT1 = getPriceOnDate(DAILY[c], yesterday);
+                    var cRet = (pT1 && pT) ? (pT / pT1 - 1) : 0;
+                    dailyGrossRet += w * cRet;
+                    nextDrift[c] = w * (1 + cRet);
+                }
+            });
+            var totalD = 0;
+            Object.values(nextDrift).forEach(v => totalD += v);
+            if(totalD > 0) Object.keys(nextDrift).forEach(c => nextDrift[c] /= totalD);
+            runningDrift = nextDrift;
+        }
+
+        runningNav *= (1 + dailyGrossRet);
+        dailyEquityCurve.push({ date: today, nav: runningNav, ret: dailyGrossRet });
+    }
+
+    nav = runningNav;
+    
+    // 💡 月頻純化 (Monthly True Reset)
+    if (freq !== 'd') {
+        drifted = Object.assign({}, target); 
     } else {
-      var cr = typeof getTNXRate === 'function' ? getTNXRate(scoreM.slice(0, 7)) : 0.04;
-      cashRet = (cr * 0.7) / ((freq === "d") ? 252 : ((freq === "2") ? 24 : 12));
-    }
-
-    var stockRets = {};
-    Object.keys(target).forEach(function(c) {
-      if (c === 'CASH') { stockRets[c] = { ret: cashRet, w: target[c] }; } 
-      else {
-        var p0 = getPriceOnDate(DAILY[c], prevM), p1 = getPriceOnDate(DAILY[c], sigM);
-        stockRets[c] = { ret: (p0 && p1 && p0 > 0) ? (p1 / p0 - 1) : null, w: target[c] };
-      }
-    });
-
-    var grossRet = 0, validTarget = {}, forcedCash = 0;
-    for (var c in target) {
-      var w = target[c], rData = stockRets[c];
-      if (rData.ret === null) { forcedCash += w; } else { grossRet += w * rData.ret; validTarget[c] = w; }
-    }
-    if (forcedCash > 0) validTarget['CASH'] = (validTarget['CASH'] || 0) + forcedCash;
-    if (!isFinite(grossRet) || grossRet <= -0.999) grossRet = -0.999; 
-    
-    // 精確扣除當期手續費
-    var netRet = (1 - friction) * (1 + grossRet) - 1;
-    if (typeof decay !== 'undefined' && decay !== null) { netRet += decay; }
-    nav *= (1 + netRet);
-    
-    // 結算新權重漂移
-    drifted = {};
-    for (var c in validTarget) { 
-        drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet); 
+        drifted = runningDrift;
     }
 
     var b0 = getPriceOnDate(refDaily, prevM), b1 = getPriceOnDate(refDaily, sigM);
     if (b0 && b1 && b0 > 0) bNav *= (1 + (b1 / b0 - 1));
-    
     var hCopy = {}; Object.keys(target).forEach(k => hCopy[k] = target[k]);
-    records.push({ month: prevM, period: prevM + " ~ " + sigM, nav: nav, bNav: bNav, holdings: hCopy, pRet: netRet, hurdle: hurdle, stockRets: stockRets });
     
-    holdings = drifted; currentHoldings = drifted; 
+    var stockRets = {};
+    Object.keys(target).forEach(function(c) {
+        if (c !== 'CASH') {
+            var p0 = getPriceOnDate(DAILY[c], prevM), p1 = getPriceOnDate(DAILY[c], sigM);
+            stockRets[c] = { ret: (p0 && p1) ? (p1 / p0 - 1) : 0, w: target[c] };
+        }
+    });
+
+    var netRet = (nav / (records.length > 0 ? records[records.length-1].nav : INIT)) - 1;
+
+    // 💡 嚴格的時間對齊
+    records.push({ 
+        month: sigM,                  // 👉 UI 顯示：報酬實現歸屬日
+        entryDate: prevM,             // 👉 真實進場/判定日
+        exitDate: sigM,               // 👉 真實出場/結算日
+        period: prevM + " → " + sigM,
+        nav: nav, 
+        bNav: bNav, 
+        holdings: hCopy, 
+        pRet: netRet, 
+        hurdle: hurdle, 
+        stockRets: stockRets,
+        execCost: EXEC_COST 
+    });
+    
+    currentHoldings = drifted; 
   }
+  
+  records.dailyCurve = dailyEquityCurve;
   return records.length >= 6 ? records : null;
 }
-
 
 // --- 替換原本的 kpi 函數 ---
 function kpi(records, init) {
@@ -1734,148 +1836,152 @@ function renderCompare(results, init, mode) {
 function renderBT(records, init, mode) {
   var recs = records; $('btRes').classList.remove('hidden');
   var last = recs[recs.length - 1];
-  var freq = $('btFreq') ? $('btFreq').value : "1";
+  
+  var dailyCurve = records.dailyCurve || [];
+  if (dailyCurve.length === 0) return; 
 
-  var yrs = (new Date(last.month) - new Date(recs[0].month)) / (365.25 * 86400000);
+  // 1. 真實路徑 MDD 計算 
+  var pk = init, mdd = 0;
+  dailyCurve.forEach(function(d) { 
+      if (d.nav > pk) pk = d.nav; 
+      var dd = (d.nav - pk) / pk; 
+      if (dd < mdd) mdd = dd; 
+  });
+
+  // 2. 嚴格 Daily 統計指標 (Sharpe / Sortino)
+  var rfDaily = 0.015 / 252;
+  var dRets = dailyCurve.map(d => d.ret);
+  var excess = dRets.map(r => r - rfDaily);
+  var nD = excess.length;
+
+  var meanExcess = excess.reduce((a,b) => a+b, 0) / nD;
+  var variance = excess.reduce((a,b) => a + Math.pow(b - meanExcess, 2), 0) / (nD > 1 ? nD - 1 : 1);
+  var std = Math.sqrt(variance);
+  var sharpe = std > 0 ? (meanExcess / std) * Math.sqrt(252) : 0;
+
+  var downRets = excess.filter(r => r < 0);
+  var nDown = downRets.length;
+  var downVariance = nDown > 0 ? downRets.reduce((a,b) => a + Math.pow(b, 2), 0) / nDown : 0;
+  var downStd = Math.sqrt(downVariance);
+  var sortino = downStd > 0 ? (meanExcess / downStd) * Math.sqrt(252) : 0;
+
+  var yrs = nD / 252;
   var tr = last.nav / init - 1, cagr = yrs > 0 ? Math.pow(1 + Math.max(tr, -0.999), 1 / yrs) - 1 : 0;
   var btr = last.bNav / init - 1, bcagr = yrs > 0 ? Math.pow(1 + Math.max(btr, -0.999), 1 / yrs) - 1 : 0;
-  var pk = init, mdd = 0;
-  recs.forEach(function(r) { if (r.nav > pk) pk = r.nav; var dd = (r.nav - pk) / pk; if (dd < mdd) mdd = dd; });
-  
-  var rets = recs.map(function(r) { return r.pRet; });
-  var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
-  var annF = (freq === "d") ? Math.sqrt(252) : (freq === "2" ? Math.sqrt(24) : Math.sqrt(12));
-  var std = Math.sqrt(rets.reduce(function(a, b) { return a + Math.pow(b - avg, 2); }, 0) / rets.length) * annF || 1;
-  var sh = (cagr - 0.015) / std;
+  var calmar = mdd < 0 ? cagr / Math.abs(mdd) : 0;
 
-  // ==============================
-  // 📊 高階統計指標模組 (獨立日線標準)
-  // ==============================
-  var wins = [], loses = [], flats = [], excessCount = 0;
-  var maxWin = 0, maxLoss = 0, alphaSum = 0;
+  // 3. Trade Ledger 
+  var trades = [];
+  var open = {};
+  var excessCount = 0;
 
-  for (var i = 0; i < recs.length; i++) {
-    var ret = recs[i].pRet;
-    var bRet = i === 0 ? (recs[i].bNav / init - 1) : (recs[i].bNav / recs[i-1].bNav - 1);
-    var alpha = ret - bRet;
-    alphaSum += alpha;
-    if (alpha > 0) excessCount++;
-    
-    // 定義：單期獲利 > 0.5% 為 Win，< -0.5% 為 Lose
-    if (ret > 0.005) { wins.push(ret); if (ret > maxWin) maxWin = ret; } 
-    else if (ret < -0.005) { loses.push(ret); if (ret < maxLoss) maxLoss = ret; } 
-    else { flats.push(ret); }
+  for (var i = 1; i < recs.length; i++) {
+      var r = recs[i];
+      var currentEntry = r.entryDate; 
+      var currentExit = r.exitDate;   
+      
+      var pb = i > 0 ? recs[i-1].bNav : init;
+      var bRet = r.bNav / pb - 1;
+      if (r.pRet > bRet) excessCount++; 
+
+      var execCost = r.execCost || 0.005;
+
+      for (var c in open) {
+          if (!r.stockRets[c] || r.stockRets[c].w === 0) {
+              var t = open[c];
+              t.ret = ((1 + t.ret) * (1 - execCost)) - 1;
+              t.outDate = currentEntry; 
+              t.days = Math.floor((new Date(t.outDate) - new Date(t.inDate)) / 86400000);
+              trades.push(t);
+              delete open[c];
+          } else {
+              open[c].ret = (1 + open[c].ret) * (1 + r.stockRets[c].ret) - 1;
+          }
+      }
+      for (var c in r.stockRets) {
+          if (!open[c] && c !== 'CASH' && r.stockRets[c].w !== 0) {
+              open[c] = {
+                  code: c, 
+                  inDate: currentEntry, 
+                  ret: ((1 + r.stockRets[c].ret) * (1 - execCost)) - 1,
+                  dir: r.stockRets[c].w < 0 ? 'Short' : 'Long'
+              };
+          }
+      }
   }
 
-  var totalTrades = wins.length + loses.length + flats.length;
-  var winRate = totalTrades > 0 ? (wins.length / totalTrades) * 100 : 0;
-  var beatRate = totalTrades > 0 ? (excessCount / totalTrades) * 100 : 0;
-  var avgWin = wins.length > 0 ? wins.reduce((a,b)=>a+b,0) / wins.length : 0;
-  var avgLoss = loses.length > 0 ? loses.reduce((a,b)=>a+b,0) / loses.length : 0;
+  for (var c in open) {
+      open[c].outDate = last.exitDate;
+  }
+  var allTrades = trades.concat(Object.values(open));
   
-  var totalGrossWin = wins.reduce((a,b)=>a+b, 0);
-  var totalGrossLoss = Math.abs(loses.reduce((a,b)=>a+b, 0));
-  var profitFactor = totalGrossLoss > 0 ? totalGrossWin / totalGrossLoss : (totalGrossWin > 0 ? 99 : 0);
-  var expPayoff = (wins.length / totalTrades) * avgWin + (loses.length / totalTrades) * avgLoss;
+  var tradeWins = 0, tradeLoses = 0, tradeFlats = 0;
+  var grossWinRet = 0, grossLossRet = 0;
+
+  allTrades.forEach(t => {
+     if (t.ret > 0.005) { tradeWins++; grossWinRet += t.ret; } 
+     else if (t.ret < -0.005) { tradeLoses++; grossLossRet += Math.abs(t.ret); } 
+     else { tradeFlats++; }
+  });
+
+  var totalTrades = allTrades.length;
+  var winRate = totalTrades > 0 ? (tradeWins / totalTrades) * 100 : 0;
+  var avgWin = tradeWins > 0 ? grossWinRet / tradeWins : 0;
+  var avgLoss = tradeLoses > 0 ? grossLossRet / tradeLoses : 0;
+  var profitFactor = grossLossRet > 0 ? grossWinRet / grossLossRet : (grossWinRet > 0 ? 99 : 0);
 
   var fmt = function(v, p, pl) { return (pl && v >= 0 ? '+' : '') + (p ? (v * 100).toFixed(2) + '%' : v.toFixed(2)); };
   var modeLabel = mode === 'rank' ? 'Rank-Weighted' : (mode === 'ivol' ? 'IV-Weighted' : 'Equal-Weighted');
-  
+
   $('btMetrics').innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <div class="card" style="border-top:3px solid var(--tw);">
-        <div class="ct">Strategy V2.0 (${modeLabel})</div>
+        <div class="ct">Strategy Analytics (${modeLabel})</div>
         <div class="mr"><span>Final NAV</span><span class="mv wh">$${Math.round(last.nav).toLocaleString()}</span></div>
-        <div class="mr"><span>Return</span><span class="mv ${tr >= 0 ? 'tg' : 'tr'}">${fmt(tr, true, true)}</span></div>
-        <div class="mr"><span>CAGR</span><span class="mv">${fmt(cagr, true)}</span></div>
-        <div class="mr"><span>MDD</span><span class="mv tr">${fmt(mdd, true)}</span></div>
-        <div class="mr"><span>Sharpe</span><span class="mv tg">${sh.toFixed(2)}</span></div>
+        <div class="mr"><span>CAGR</span><span class="mv ${cagr >= 0 ? 'tg' : 'tr'}">${fmt(cagr, true)}</span></div>
+        <div class="mr"><span>Max Drawdown (Daily)</span><span class="mv tr">${fmt(mdd, true)}</span></div>
+        <div class="mr"><span>Sharpe Ratio <span style="font-size:9px;color:var(--mu)">(Daily-based, 252d)</span></span><span class="mv tg">${sharpe.toFixed(2)}</span></div>
+        <div class="mr"><span>Sortino Ratio <span style="font-size:9px;color:var(--mu)">(Nd base)</span></span><span class="mv tg">${sortino.toFixed(2)}</span></div>
+        <div class="mr"><span>Calmar Ratio</span><span class="mv tg">${calmar.toFixed(2)}</span></div>
       </div>
       <div class="card" style="border-top:3px solid var(--mu);">
         <div class="ct">TAIEX Benchmark</div>
-        <div class="mr"><span>Return</span><span class="mv ${btr >= 0 ? 'tg' : 'tr'}">${fmt(btr, true, true)}</span></div>
+        <div class="mr"><span>Period Return</span><span class="mv ${btr >= 0 ? 'tg' : 'tr'}">${fmt(btr, true, true)}</span></div>
         <div class="mr"><span>CAGR</span><span class="mv">${fmt(bcagr, true)}</span></div>
         <div class="mr"><span>Alpha</span><span class="mv ${(cagr - bcagr) >= 0 ? 'tg' : 'tr'}">${fmt(cagr - bcagr, true, true)}</span></div>
       </div>
     </div>
 
     <div class="card" style="border-left:4px solid var(--ac); margin-bottom:12px; margin-top:8px;">
-        <div class="ct">📈 交易統計與風險指標 (總期數: ${totalTrades})</div>
+        <div class="ct">📈 Strict Trade Ledger (Inc. Fixed Slippage & Fees)</div>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
             <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">勝率 / 超額勝率</span><br>
-                <b style="color:var(--gr); font-size:14px;">${winRate.toFixed(1)}%</b> / <b style="color:var(--ye); font-size:14px;">${beatRate.toFixed(1)}%</b>
+                <span style="color:var(--mu); font-size:10px;">Win Rate</span><br>
+                <b style="color:var(--gr); font-size:14px;">${winRate.toFixed(1)}%</b>
             </div>
             <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">單期 盈 / 虧 / 平 (±0.5%)</span><br>
-                <b style="color:var(--tw);">${wins.length}</b> / <b style="color:var(--re);">${loses.length}</b> / <b>${flats.length}</b>
+                <span style="color:var(--mu); font-size:10px;">Wins / Losses</span><br>
+                <b style="color:var(--tw);">${tradeWins}</b> / <b style="color:var(--re);">${tradeLoses}</b>
             </div>
             <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">平均獲利 / 虧損</span><br>
-                <b style="color:var(--gr);">${fmt(avgWin, true, true)}</b> / <b style="color:var(--re);">${fmt(avgLoss, true)}</b>
+                <span style="color:var(--mu); font-size:10px;">Avg Win / Loss</span><br>
+                <b style="color:var(--gr);">${fmt(avgWin, true, true)}</b> / <b style="color:var(--re);">${fmt(-avgLoss, true)}</b>
             </div>
             <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">單期極端 盈 / 虧</span><br>
-                <b style="color:var(--gr);">${fmt(maxWin, true, true)}</b> / <b style="color:var(--re);">${fmt(maxLoss, true)}</b>
-            </div>
-            <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">Profit Factor (獲利因子)</span><br>
+                <span style="color:var(--mu); font-size:10px;">Profit Factor</span><br>
                 <b style="color:${profitFactor > 1.5 ? 'var(--gr)' : (profitFactor > 1 ? 'var(--ye)' : 'var(--re)')}; font-size:14px;">${profitFactor.toFixed(2)}</b>
-            </div>
-            <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">Exp. Payoff (單期期望值)</span><br>
-                <b style="color:${expPayoff > 0 ? 'var(--gr)' : 'var(--re)'}; font-size:14px;">${fmt(expPayoff, true, true)}</b>
             </div>
         </div>
     </div>
   `;
 
-  // ==============================
-  // 🔄 雙軌渲染邏輯：日頻 (交易明細) vs 月頻 (期數明細)
-  // ==============================
   var headRow = document.querySelector('#btRes thead tr');
+  var freqStr = $('btFreq') ? $('btFreq').value : "1";
   
-  if (freq === 'd') {
-    // 【日頻模式】渲染：目前持股 + 歷史交易紀錄
-    if (headRow) headRow.innerHTML = '<th>進場日</th><th>出場日</th><th>標的</th><th>方向</th><th>持有天數</th><th>累積報酬</th><th>總貢獻</th>';
+  if (freqStr === 'd') {
+    if (headRow) headRow.innerHTML = '<th>Entry Date</th><th>Exit Date</th><th>Ticker</th><th>Direction</th><th>Days Held</th><th>Total Return</th>';
     
-    var trades = [];
-    var open = {};
-    
-    // 解析期數淨值，反推出完整的交易進出歷史
-    for (var i = 1; i < recs.length; i++) {
-        var r = recs[i];
-        var prevM = recs[i-1].month;
-        
-        // 檢查賣出：上期持有，但本期不再持有的標的
-        for (var c in open) {
-            if (!r.stockRets[c]) {
-                var t = open[c];
-                t.outDate = prevM; 
-                t.days = Math.floor((new Date(t.outDate) - new Date(t.inDate)) / 86400000);
-                trades.push(t);
-                delete open[c];
-            } else {
-                // 繼續持有，累加期間報酬與貢獻
-                open[c].ret = (1 + open[c].ret) * (1 + r.stockRets[c].ret) - 1;
-                open[c].contrib += r.stockRets[c].ret * r.stockRets[c].w;
-            }
-        }
-        // 檢查買進：本期新增的標的
-        for (var c in r.stockRets) {
-            if (!open[c] && c !== 'CASH') {
-                open[c] = {
-                    code: c,
-                    inDate: prevM,
-                    ret: r.stockRets[c].ret,
-                    contrib: r.stockRets[c].ret * r.stockRets[c].w,
-                    dir: r.stockRets[c].w < 0 ? 'Short' : 'Long'
-                };
-            }
-        }
-    }
-
-    var currentHtml = '<tr><td colspan="7" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--tw);padding:8px">👇 目前持股狀態 (Current Holdings) 👇</td></tr>';
+    var currentHtml = '<tr><td colspan="6" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--tw);padding:8px">👇 Current Holdings 👇</td></tr>';
     for (var c in open) {
         var t = open[c];
         var rc = t.ret >= 0 ? 'var(--gr)' : 'var(--re)';
@@ -1885,13 +1991,12 @@ function renderBT(records, init, mode) {
             <td class="mono" style="color:var(--ye)">Holding</td>
             <td class="mono" style="font-weight:bold;color:var(--tw)">${t.code} <span style="font-size:10px;color:var(--mu)">${nm}</span></td>
             <td class="mono">${t.dir}</td>
-            <td class="mono">${Math.floor((new Date(last.month) - new Date(t.inDate)) / 86400000)}</td>
+            <td class="mono">${Math.floor((new Date(last.exitDate) - new Date(t.inDate)) / 86400000)}</td>
             <td class="mono" style="color:${rc};font-weight:700">${(t.ret >= 0 ? '+' : '')}${(t.ret*100).toFixed(2)}%</td>
-            <td class="mono" style="color:${rc};font-weight:700">${(t.contrib >= 0 ? '+' : '')}${(t.contrib*100).toFixed(2)}%</td>
         </tr>`;
     }
 
-    var histHtml = '<tr><td colspan="7" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--mu);padding:8px">👇 歷史已實現交易 (Trade History) 👇</td></tr>';
+    var histHtml = '<tr><td colspan="6" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--mu);padding:8px">👇 Trade History 👇</td></tr>';
     trades.reverse().forEach(t => {
         var rc = t.ret >= 0 ? 'var(--gr)' : 'var(--re)';
         var nm = getStockName(t.code) || '';
@@ -1902,20 +2007,16 @@ function renderBT(records, init, mode) {
             <td class="mono">${t.dir}</td>
             <td class="mono">${t.days}</td>
             <td class="mono" style="color:${rc}">${(t.ret >= 0 ? '+' : '')}${(t.ret*100).toFixed(2)}%</td>
-            <td class="mono" style="color:${rc}">${(t.contrib >= 0 ? '+' : '')}${(t.contrib*100).toFixed(2)}%</td>
         </tr>`;
     });
-
     $('btBody').innerHTML = currentHtml + histHtml;
 
   } else {
-    // 【月/半月頻模式】渲染：原版逐期持股明細
-    if (headRow) headRow.innerHTML = '<th>Month / Stock</th><th>Holdings</th><th>Hurdle%</th><th>Return%</th><th>NAV / +$PnL</th><th>TAIEX / Contrib</th><th>Alpha%</th>';
-
+    // 💡 修正 1 & 2：將月頻的標題修正為 Holding Period 與 TAIEX (Period)
+    if (headRow) headRow.innerHTML = '<th>Holding Period</th><th>Holdings</th><th>Hurdle%</th><th>Period Ret%</th><th>NAV</th><th>TAIEX (Period)</th><th>Alpha%</th>';
     $('btBody').innerHTML = recs.slice().reverse().map(function(r, ri) {
       var idx2 = recs.length - 1 - ri;
       var pb = idx2 > 0 ? recs[idx2 - 1].bNav : init;
-      var prevNav = idx2 > 0 ? recs[idx2 - 1].nav : init;
       var bRet = r.bNav / pb - 1;
       var ex = r.pRet - bRet;
       var rc = r.pRet >= 0 ? 'var(--gr)' : 'var(--re)';
@@ -1923,64 +2024,23 @@ function renderBT(records, init, mode) {
       
       var holdStr = Object.keys(r.holdings).map(function(k) {
         var wt = r.holdings[k];
+        if (wt === 0) return '';
         var isShort = wt < 0;
-        var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
-        var col = isShort ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
-        var bg = isShort ? 'var(--bld)' : (isUs ? 'var(--usd)' : 'var(--twd)');
-        var bst = isShort ? 'dashed' : 'solid';
-        var nm = getStockName(k);
+        var col = isShort ? 'var(--bl)' : 'var(--tw)';
+        var bg = isShort ? 'var(--bld)' : 'var(--twd)';
         var pct = Math.abs(wt * 100).toFixed(0) + '%';
-        var lbl = (isShort ? 'S ' : '') + k + (nm && nm !== k ? ' ' + nm : '');
-        return `<span style="background:${bg}; color:${col}; border:1px ${bst} ${col}; padding:1px 6px; border-radius:3px; font-size:10px; font-family:monospace; margin:1px;">${lbl} ${pct}</span>`;
+        return `<span style="background:${bg}; color:${col}; border:1px solid ${col}; padding:1px 6px; border-radius:3px; font-size:10px; font-family:monospace; margin:1px;">${k} ${pct}</span>`;
       }).join('');
 
-      var summaryRow = `
-        <tr style="border-top:2px solid var(--bd);">
-          <td class="mono" style="font-weight:700; vertical-align:top;">${r.month}</td>
-          <td style="vertical-align:top;">${holdStr}</td>
-          <td class="mono" style="font-size:10px; color:var(--bl); vertical-align:top;">${(r.hurdle * 100).toFixed(1)}%</td>
-          <td class="mono" style="color:${rc}; font-weight:700; vertical-align:top;">${r.pRet >= 0 ? '+' : ''}${(r.pRet * 100).toFixed(2)}%</td>
-          <td class="mono" style="color:var(--tw); font-weight:700; vertical-align:top;">$${Math.round(r.nav).toLocaleString()}</td>
-          <td class="mono" style="color:var(--mu); vertical-align:top;">$${Math.round(r.bNav).toLocaleString()}</td>
-          <td class="mono" style="color:${ec}; font-weight:700; vertical-align:top;">${ex >= 0 ? '+' : ''}${(ex * 100).toFixed(2)}pp</td>
-        </tr>
-      `;
-
-      var detailRows = '';
-      if (r.stockRets) {
-        Object.keys(r.stockRets).forEach(function(k) {
-          var sr = r.stockRets[k], ret = sr.ret, w = sr.w || 0;
-          var contrib = ret * w, pnl = prevNav * contrib;
-          var isShortPos = w < 0;
-          var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
-          var col = isShortPos ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
-          var rc2 = contrib >= 0 ? 'var(--gr)' : 'var(--re)';
-          var nm = getStockName(k);
-          var dirLabel = isShortPos ? '[S] ' : '';
-          var absPct = Math.abs(w * 100).toFixed(0) + '%';
-          
-          detailRows += `
-            <tr style="background:var(--bg); opacity:0.85;">
-              <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
-              <td style="padding:3px 8px; border-bottom:1px solid var(--bd); font-family:monospace; font-size:11px; color:${col};">
-                ${dirLabel}${k}${nm && nm !== k ? ` <span style="color:var(--mu); font-size:10px;">${nm}</span>` : ''} 
-                <span style="color:var(--mu); font-size:10px;">${absPct}</span>
-              </td>
-              <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
-              <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:var(--mu);">
-                ${ret >= 0 ? '+' : ''}${(ret * 100).toFixed(2)}%
-              </td>
-              <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:${rc2};">
-                ${pnl >= 0 ? '+$' : '-$'}${Math.abs(Math.round(pnl)).toLocaleString()}
-              </td>
-              <td colspan="2" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:10px; color:${rc2};">
-                contrib: ${contrib >= 0 ? '+' : ''}${(contrib * 100).toFixed(2)}%
-              </td>
-            </tr>
-          `;
-        });
-      }
-      return summaryRow + detailRows;
+      return `<tr style="border-top:2px solid var(--bd);">
+          <td class="mono" style="font-weight:700;">${r.month} <span style="font-size:10px;color:var(--mu);display:block;">${r.period}</span></td>
+          <td>${holdStr}</td>
+          <td class="mono" style="font-size:10px; color:var(--bl);">${(r.hurdle * 100).toFixed(1)}%</td>
+          <td class="mono" style="color:${rc}; font-weight:700;">${r.pRet >= 0 ? '+' : ''}${(r.pRet * 100).toFixed(2)}%</td>
+          <td class="mono" style="color:var(--tw); font-weight:700;">$${Math.round(r.nav).toLocaleString()}</td>
+          <td class="mono" style="color:var(--mu);">$${Math.round(r.bNav).toLocaleString()}</td>
+          <td class="mono" style="color:${ec}; font-weight:700;">${ex >= 0 ? '+' : ''}${(ex * 100).toFixed(2)}pp</td>
+        </tr>`;
     }).join('');
   }
 }
