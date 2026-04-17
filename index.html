@@ -496,12 +496,11 @@ tr:hover{background:var(--sf2)}
     <div class="ct">&#x8A55;&#x5206;&#x6B0A;&#x91CD; <span style="font-size:10px;color:var(--gr)">&#x6539;&#x5B8C;&#x6B0A;&#x91CD;&#x76F4;&#x63A5;&#x91CD;&#x8A08;</span></div>
     <div class="g3">
             <div class="fi" style="grid-column:1/-1">
-               <select id="momPeriodSet" onchange="updateMomPeriods()">
-          <option value="0">長線 (240/120/60 天)</option>
-          <option value="1">中短 (120/60/30 天)</option>
-          <option value="2">極短 (60/20/5 天)</option>
+        <label>&#x52D5;&#x80FD;&#x5468;&#x671F;&#x7D44;&#x5408;</label>
+        <select id="momPeriodSet" onchange="updateMomPeriods()">
+          <option value="0">240 / 120 / 60 &#x5929; (&#x9577;&#x671F;)</option>
+          <option value="1">120 / 60 / 30 &#x5929; (&#x4E2D;&#x671F;)</option>
         </select>
-
       </div>
       <div class="fi"><label id="zW_long_lbl">z&#x9577;(240d) %</label><input type="number" id="zW_long" value="50" min="0" max="100" oninput="normMomWeights('long')"></div>
       <div class="fi"><label id="zW_mid_lbl">z&#x4E2D;(120d) % &#x56FA;</label><input type="number" id="zW_mid" value="30" min="0" max="100" oninput="normMomWeights('mid')"></div>
@@ -755,32 +754,19 @@ tr:hover{background:var(--sf2)}
           <input type="checkbox" id="btSkipMo" style="width:14px;accent-color:var(--tw)"> &#x8DF3;&#x904E;&#x6700;&#x8FD1;1&#x6708;
         </label>
       </div>
-       <div class="fi"><label>回測頻率</label>
-  <select id="btFreq" onchange="syncFreqParams()">
+      <div class="fi"><label>Signal Lag</label>
+  <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="lagMode" id="lagT1" value="1" checked style="width:14px;accent-color:var(--tw)"> t-1</label>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="lagMode" id="lagT2" value="2" style="width:14px;accent-color:var(--tw)"> t-2</label>
+  </div>
+</div>
+<!-- V2.0 新增實驗性控制項 -->
+<div class="fi"><label>回測頻率</label>
+  <select id="btFreq">
     <option value="1">全月 (每月1號)</option>
     <option value="2">半月 (1號 & 15號)</option>
-    <option value="d">日頻 (每日)</option>
   </select>
 </div>
-      <div class="fi" style="grid-column:1/-1">
-        <label>動能週期組合</label>
-        <select id="momPeriodSet" onchange="updateMomPeriods()">
-          <option value="0">長線 (240/120/60 天)</option>
-          <option value="1">中短 (120/60/30 天)</option>
-          <option value="2">極短 (60/20/5 天)</option>
-        </select>
-      </div>
-
-<div class="fi"><label>訊號延遲 (T-Lag 期數)</label>
-  <select id="sigLag">
-    <option value="1">T-1 (前一期結算訊號)</option>
-    <option value="2">T-2 (前二期結算訊號)</option>
-  </select>
-</div>
-
-
-
-
 <div class="fi"><label>大盤風控 (Regime)</label>
   <select id="btRegime">
     <option value="off">Off</option>
@@ -1054,66 +1040,51 @@ function updFetchStat(){
   }, 0) / rets.length;
   return Math.sqrt(variance * 252);
 }
+
 function calcMA(bars, dateStr, period) {
   if (!bars || !bars.length) return null;
-  var L = 0, R = bars.length - 1;
-  while(L <= R) {
-      var M = (L + R) >> 1;
-      if(bars[M].date === dateStr) { R = M; break; }
-      if(bars[M].date < dateStr) L = M + 1;
-      else R = M - 1;
+  
+  // 1. 尋找「小於等於」該日期的最新一筆 K 棒索引 (解決台美股時差)
+  let idx = -1;
+  for (let i = 0; i < bars.length; i++) {
+    if (bars[i].date <= dateStr) idx = i;
+    else break;
   }
-  if (R < period - 1 || R < 0) return null;
-  let sumPriceVol = 0, sumVol = 0;
-  for (let i = R - period + 1; i <= R; i++) {
+  
+  if (idx < period - 1) return null; 
+  
+  // 2. 計算 VWMA (成交量加權移動平均)
+  let sumPriceVol = 0;
+  let sumVol = 0;
+  
+  for (let i = idx - period + 1; i <= idx; i++) {
+    // 🛡️ 機構級防呆：大盤指數或缺漏資料的 Volume 可能是 0 或 null
+    // 遇到無量時，強制給予權重 1 (也就是自動降級成傳統 SMA，防止除以 0 崩潰)
     let vol = (bars[i].v && bars[i].v > 0) ? bars[i].v : 1; 
+    
     sumPriceVol += bars[i].c * vol;
     sumVol += vol;
   }
+  
   return sumVol > 0 ? (sumPriceVol / sumVol) : null;
 }
 
 
-// 💡 取得開盤價 (防呆機制：若無開盤價則退回至收盤價)
-function getOpenPrice(bars, date) {
-  if (!bars) return null;
-  var L = 0, R = bars.length - 1;
-  while(L <= R) {
-      var M = (L + R) >> 1;
-      if(bars[M].date === date) return bars[M].o || bars[M].c;
-      if(bars[M].date < date) L = M + 1;
-      else R = M - 1;
-  }
-  return null;
-}
 
 function getPriceOnDate(bars, dateStr) { 
-  if (!bars || !bars.length || dateStr < bars[0].date) return null;
-  var L = 0, R = bars.length - 1;
-  while(L <= R) {
-      var M = (L + R) >> 1;
-      if(bars[M].date === dateStr) { R = M; break; }
-      if(bars[M].date < dateStr) L = M + 1;
-      else R = M - 1;
+  if (!bars || !bars.length || dateStr < bars[0].date) return null; 
+  let best = bars[0].c;
+  for(let i=0; i<bars.length; i++) { 
+    if (bars[i].date <= dateStr) best = bars[i].c; 
+    else break; 
   }
-  return R >= 0 ? bars[R].c : bars[0].c;
+  return best; 
 }
 
-
-function getPrevWorkDay(bars, dateStr, offset) {
-  var off = offset || 5;
-  if (!bars || !bars.length) return dateStr;
-  var L = 0, R = bars.length - 1;
-  while(L <= R) {
-      var M = (L + R) >> 1;
-      if(bars[M].date === dateStr) { R = M; break; }
-      if(bars[M].date < dateStr) L = M + 1;
-      else R = M - 1;
-  }
-  if (R < off || R < 0) return bars[0] ? bars[0].date : dateStr; 
-  return bars[R - off].date;
+function getPrevWorkDay(bars, dateStr, offset = 5) {
+  if (!bars) return dateStr; let idx = bars.findIndex(b => b.date === dateStr);
+  if (idx < offset) return bars[0].date; return bars[idx - offset].date;
 }
-
 
 function isBearishRegime(bars, dateStr, period = 60) {
   let ma = calcMA(bars, dateStr, period), price = getPriceOnDate(bars, dateStr);
@@ -1122,18 +1093,15 @@ function isBearishRegime(bars, dateStr, period = 60) {
   return price < ma && (prevMA ? ma < prevMA : true);
 }
 function getPreciseRebalanceDates(bars, freq) {
-  if (!bars) return [];
-  if (freq === "d") return bars.map(b => b.date); // 日頻回傳所有交易日
-
-  var dates = [];
-  var currentMonth = "";
-  var monthBars = [];
+  const dates = [];
+  let currentMonth = "";
+  let monthBars = [];
 
   function processMonth(mBars) {
     if(!mBars.length) return;
     // 半月回測：尋找 >= 15日的第一個交易日
     if (freq === "2") {
-      var midBar = mBars.find(b => parseInt(b.date.slice(8, 10)) >= 15);
+      let midBar = mBars.find(b => parseInt(b.date.slice(8, 10)) >= 15);
       if (midBar) dates.push(midBar.date);
     }
     // 不論全月或半月，都統一強制抓取「該月最後一筆」
@@ -1141,19 +1109,18 @@ function getPreciseRebalanceDates(bars, freq) {
   }
 
   bars.forEach(bar => {
-    var ym = bar.date.slice(0, 7);
+    const ym = bar.date.slice(0, 7);
     if (ym !== currentMonth) {
-      if (currentMonth !== "") processMonth(monthBars);
+      if (currentMonth !== "") processMonth(monthBars); // 換月時結算上一月
       currentMonth = ym;
       monthBars = [];
     }
     monthBars.push(bar);
   });
-  if (monthBars.length > 0) processMonth(monthBars);
-
-  return [...new Set(dates)].sort();
+  if (monthBars.length > 0) processMonth(monthBars); // 結算最後一個月
+  
+  return [...new Set(dates)].sort(); // 確保日期不重複且依序排列
 }
-
 
 
 // 合併新舊 K 線資料並去重複、重新排序
@@ -1200,78 +1167,60 @@ function rawMom(daily, idx) {
   return score;
 }
 
+
 async function buildCache() {
-  const stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : STOCKS.map(c=>({c:c}));
+  const stocks = getEnabledStocks();
   var withData = stocks.filter(function(s){return DAILY[s.c] && DAILY[s.c].length > 0;});
-  if(!withData.length){ if(typeof updCacheSt==='function') updCacheSt(); return; }
-  if(typeof showL==='function') showL('Building Smart Cache...');
+  if(!withData.length){updCacheSt();return;}
+  showL('Building V2.0 Cache (包含 T-1/T-2 日期)...'); 
   RAW_SCORES={};
-
-  var nTrendEl = document.getElementById('nTrend') || document.getElementById('btNTrend');
-  var N_TREND = parseInt(nTrendEl ? nTrendEl.value : '60') || 60;
-  var maxL = Math.max(240, MOM_PERIODS[0], MOM_PERIODS[1], MOM_PERIODS[2]);
-
-  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
-  var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
-  var skipMoOn = !!(document.getElementById('btSkipMo') && document.getElementById('btSkipMo').checked);
-
-  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : withData[0].c);
-  var refDaily = DAILY[masterTicker];
-
-  var allM = getPreciseRebalanceDates(refDaily, freq);
-  var neededDates = new Set();
+  var freq = $('btFreq') ? $('btFreq').value : "1";
   
-  for (var idx = LAG; idx < allM.length; idx++) {
-     var scoreM = allM[idx - LAG];
-     if (scoreM) {
-         var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM;
-         neededDates.add(scoringM);
-         neededDates.add(scoreM); // 確保大盤風控日期有被算進去
-     }
-  }
-  if (refDaily && refDaily.length > 0) neededDates.add(refDaily[refDaily.length - 1].date);
-  var targetDates = Array.from(neededDates).sort();
+  // 定義大盤基準
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : (DAILY['SPY'] ? 'SPY' : withData[0].c));
+  var refDaily = DAILY[masterTicker];
+  var globalRebalDates = getPreciseRebalanceDates(refDaily, freq);
+  
+  // 【核心修正】不只結算日，預先算出 T-1 與 T-2 的日期並加入快取清單
+  var neededDates = [];
+  globalRebalDates.forEach(function(d) {
+    neededDates.push(d); // T-0 (結算日)
+    neededDates.push(getPrevWorkDay(refDaily, d, 1)); // T-1 日期
+    neededDates.push(getPrevWorkDay(refDaily, d, 2)); // T-2 日期
+  });
+  // 去除重複日期並排序
+  var cacheDates = [...new Set(neededDates)].sort();
 
   for(var si=0;si<withData.length;si++){
     var s=withData[si];
-    var loadTxt = document.getElementById('loadTxt');
-    if(loadTxt) loadTxt.textContent='Cache: '+s.c+' ('+(si+1)+'/'+withData.length+')';
-    var bars=DAILY[s.c];
+    $('loadTxt').textContent='Cache: '+s.c+' ('+(si+1)+'/'+withData.length+')';
+    var bars=DAILY[s.c]; 
     RAW_SCORES[s.c]={};
-
+    
     let bIdx = 0;
-    targetDates.forEach(function(d) {
+    cacheDates.forEach(function(d){
+      // 尋找對應日期的 K 棒索引
       while(bIdx < bars.length - 1 && bars[bIdx + 1].date <= d) { bIdx++; }
-
-      if(bars[bIdx].date <= d && bIdx >= maxL){
-        // 💡 記憶體救星：不再複製幾千天的陣列，只取計算需要的長度
-        var neededLen = Math.max(260, N_TREND * 2 + 10);
-        var cut = bars.slice(Math.max(0, bIdx + 1 - neededLen), bIdx + 1);
-        RAW_SCORES[s.c][d] = {
-          rm: typeof rawMom === 'function' ? rawMom(bars, bIdx) : [0,0,0],
-          rb: typeof calcBias === 'function' ? calcBias(cut, N_TREND) : 0,
-          rs: typeof calcSlope === 'function' ? calcSlope(cut, N_TREND) : 0,
-          rv: typeof calcVol === 'function' ? calcVol(cut, N_TREND) : 1,
-          rk: typeof calcKbar === 'function' ? calcKbar(cut, N_TREND) : 0,
-          r240: bars[bIdx].c / (bars[bIdx-240] ? bars[bIdx-240].c : 1) - 1
+      
+      // 確保股票上市滿 240 天，才產生分數存入
+      if(bars[bIdx].date <= d && bIdx >= 240){
+        var cut = bars.slice(0, bIdx+1);
+        RAW_SCORES[s.c][d]={ 
+          rm: rawMom(bars, bIdx), 
+          rb: calcBias(cut, N_TREND), 
+          rs: calcSlope(cut, N_TREND), 
+          rv: calcVol(cut, N_TREND), 
+          rk: calcKbar(cut, N_TREND), 
+          r240: bars[bIdx].c/(bars[bIdx-240]?bars[bIdx-240].c:1)-1 
         };
       }
     });
+    // 釋放記憶體避免瀏覽器卡死
     if(si%5===4) await new Promise(function(r){setTimeout(r,0);});
   }
-
-  CACHE_BUILT=true;
-  if (typeof CACHE_TS !== 'undefined') CACHE_TS = new Date().toISOString();
-  if (typeof SKIP_MO !== 'undefined') CACHE_SKIP_MO = skipMoOn;
-
-  if(typeof hideL==='function') hideL();
-  if(typeof updCacheSt==='function') updCacheSt();
+  CACHE_BUILT=true; CACHE_TS=new Date().toISOString(); CACHE_SKIP_MO=SKIP_MO;
+  hideL(); updCacheSt(); updTNX();
 }
-
-
-
-
-
 
 function updCacheSt(){var el=$('cacheTxt');if(!el)return;if(!CACHE_BUILT){el.textContent='Cache: not built';el.style.color='var(--mu)';return;}var n=Object.keys(RAW_SCORES).length;var dt=new Date(CACHE_TS).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'});el.textContent='Cache OK ('+n+' stocks, '+dt+')';el.style.color='var(--gr)';}
 
@@ -1342,28 +1291,19 @@ function calcCorr(c1, c2, dateStr) {
   var b1 = DAILY[c1], b2 = DAILY[c2];
   if (!b1 || !b2) return 0;
   
-  // 內部專用二分搜尋
-  var findIdx = function(bars, d) {
-     var L = 0, R = bars.length - 1;
-     while(L <= R) {
-         var M = (L + R) >> 1;
-         if(bars[M].date === d) return M;
-         if(bars[M].date < d) L = M + 1;
-         else R = M - 1;
-     }
-     return R;
-  };
-  var i1 = findIdx(b1, dateStr);
-  var i2 = findIdx(b2, dateStr);
+  var i1 = b1.findIndex(b => b.date === dateStr);
+  var i2 = b2.findIndex(b => b.date === dateStr);
   
-  var winDays = (typeof CORR_WIN !== 'undefined') ? CORR_WIN : 24;
-  var requiredDays = winDays * 20;
+  // 確保有足夠的歷史資料 (24 個月 * 每月約 20 個交易日 = 480 天)
+  var requiredDays = CORR_WIN * 20; 
   if (i1 < requiredDays || i2 < requiredDays) return 0;
   
   var r1 = [], r2 = [];
-  for (var i = 0; i < winDays; i++) {
+  // 每隔 20 個交易日取一次樣，計算月報酬率
+  for (var i = 0; i < CORR_WIN; i++) {
     var curr1 = i1 - (i * 20), prev1 = i1 - ((i + 1) * 20);
     var curr2 = i2 - (i * 20), prev2 = i2 - ((i + 1) * 20);
+    
     r1.push(b1[curr1].c / b1[prev1].c - 1);
     r2.push(b2[curr2].c / b2[prev2].c - 1);
   }
@@ -1378,362 +1318,331 @@ function calcCorr(c1, c2, dateStr) {
   return num / Math.sqrt((d1 * d2) || 1);
 }
 
-
 function getBench(dateStr) {
    var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['SPY'] ? 'SPY' : null);
    return masterTicker ? getPriceOnDate(DAILY[masterTicker], dateStr) : null;
 }
 
 
-function runBTcore(mh, mode, decay) {
+function runBTcore(mh, mode) {
   if (!CACHE_BUILT) return null;
-  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
-  var LAG = parseInt(document.getElementById('sigLag') ? document.getElementById('sigLag').value : "1");
-  var rankBuffer = (freq === 'd') ? Math.max(5, mh) : 2; 
-
-  var stocks = typeof getEnabledStocks === 'function' ? getEnabledStocks() : [];
-  var withData = stocks.filter(function(s) { return DAILY[s.c]; });
-  if (withData.length < 3) return null;
-
-  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : 'SPY');
-  var refDaily = DAILY[masterTicker]; 
-  if (!refDaily) return null;
+  var stocks = getEnabledStocks().filter(function(s) { return DAILY[s.c]; });
+  if (stocks.length < 3) return null;
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : (DAILY['SPY'] ? 'SPY' : stocks[0].c));
+  var refDaily = DAILY[masterTicker]; if (!refDaily) return null;
+  var freq = $('btFreq') ? $('btFreq').value : "1";
   
+  // 確保 allM 裡面只會有絕對乾淨的「換股日」
   var allM = getPreciseRebalanceDates(refDaily, freq);
-  var rawS = document.getElementById('btS') ? (document.getElementById('btS').value || '').trim().slice(0, 10) : '';
-  var rawE = document.getElementById('btE') ? (document.getElementById('btE').value || '').trim().slice(0, 10) : '';
   
-  var MIN = Math.max(1, LAG + 1), cS = MIN; 
-  if (rawS) { for (var i = cS; i < allM.length; i++) { if (allM[i] >= rawS) { cS = i; break; } } }
+  var rawS = $('btS') ? ($('btS').value || '').trim().slice(0, 10) : '';
+  var rawE = $('btE') ? ($('btE').value || '').trim().slice(0, 10) : '';
+  var lagEl = document.querySelector('input[name="lagMode"]:checked');
+  var LAG = lagEl ? parseInt(lagEl.value) : 1; 
+
+  var MIN = 1, cS = MIN;
+  if (rawS) { 
+    for (var i = cS; i < allM.length; i++) { 
+      if (allM[i] >= rawS) { cS = i; break; } 
+    } 
+  }
+  
   var cE = allM.length - 1;
-  if (rawE) { for (var i2 = cE; i2 >= cS; i2--) { if (allM[i2] <= rawE) { cE = i2; break; } } }
+  if (rawE) { 
+    for (var i2 = cE; i2 >= cS; i2--) { 
+      if (allM[i2] <= rawE) { cE = i2; break; } 
+    } 
+  }
   if (cS > cE) return null;
-  
-  var INIT = gv('btCap') || 100000;
-  
-  // 💡 Research-Grade 實戰成本模型
-  var feeInput = document.getElementById('btCost') || document.getElementById('btC');
-  var FEE = (parseFloat(feeInput ? feeInput.value : 0.3) || 0) / 100;
-  var SLIPPAGE = 0.002; // 固定單邊滑價 0.2%
-  var EXEC_COST = FEE + SLIPPAGE; // 傳遞給明細使用
-  
-  var ct = typeof CORR_T !== 'undefined' ? CORR_T : 0.75;
-  var shortN = parseInt(document.getElementById('btSN') ? document.getElementById('btSN').value : '0') || 0;
-  var capModeEl = document.querySelector('input[name="capMode"]:checked');
-  var capMode = capModeEl ? capModeEl.value : 'neutral';
+
+    var INIT = gv('btCap') || 100000, COST = (gv('btC') || 0.3) / 100, ct = CORR_T;
+
+  var shortN = parseInt($('btSN') ? $('btSN').value : '0') || 0;
+  var capMode = document.querySelector('input[name="capMode"]:checked') ? document.querySelector('input[name="capMode"]:checked').value : 'neutral';
   var wtModeEl = document.querySelector('input[name="wtMode"]:checked');
-  var wtMode = wtModeEl ? wtModeEl.value : 'eq';
-  var shortTSF = !!(document.getElementById('btSTSF') && document.getElementById('btSTSF').checked);
-  var regimeOn = document.getElementById('btRegime') && document.getElementById('btRegime').value === 'on';
+var wtMode = wtModeEl ? wtModeEl.value : 'equal';
+
+  var shortTSF = !!($('btSTSF') && $('btSTSF').checked);
+  
+  var indExitOn = $('btIndExit') && $('btIndExit').value === 'on';
+  var regimeOn = $('btRegime') && $('btRegime').value === 'on';
   var regimeExp = gv('btRegimeExp') || 50;
 
   var nav = INIT, bNav = INIT, records = [], holdings = { CASH: 1.0 };
-  var currentHoldings = {}; 
-  var drifted = {}; 
   var DEFENSIVE = ['TLT', 'GLD', 'SGOV'];
-  var dailyEquityCurve = []; 
 
   for (var idx = cS; idx <= cE; idx++) {
-    var sigM = allM[idx];       
-    var prevM = allM[idx - 1];  
-    var scoreM = allM[idx - 1 - LAG]; 
-    if (!scoreM) continue;
+    var sigM = allM[idx];            
+    var prevM = allM[idx - 1];       
     
+    var scoreM = getPrevWorkDay(refDaily, prevM, LAG);
+
     var hurdle = getHurdle(scoreM);
-    var skipMoOn = !!(document.getElementById('btSkipMo') && document.getElementById('btSkipMo').checked);
-    var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM; 
-    
-    var sc2 = calcAllScores(scoringM); 
-    var valid = sc2.filter(function(r) { return r.score !== null && !isNaN(r.score); });
+    var skipMoOn = !!($('btSkipMo') && $('btSkipMo').checked);
+var scoringM = skipMoOn ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM;
+var sc2 = calcAllScores(scoringM);
+
+    var valid = sc2.filter(function(r) { return r.score !== null; });
     valid.sort(function(a, b) { return b.score - a.score; });
-    valid.forEach(function(item, i) { item.rank = i; }); 
 
-    var isMarketBull = true;
-    if (regimeOn && RAW_SCORES[masterTicker] && RAW_SCORES[masterTicker][scoreM]) {
-        isMarketBull = RAW_SCORES[masterTicker][scoreM].rm[1] > 0;
+    if (valid.length < 5) {
+      var b0x = getPriceOnDate(refDaily, prevM);
+      var b1x = getPriceOnDate(refDaily, sigM);
+      if (b0x && b1x && b0x > 0) bNav *= (1 + (b1x / b0x - 1));
+      
+      var periodStr = prevM + " ~ " + sigM;
+      records.push({ month: sigM, period: periodStr, nav: nav, bNav: bNav, holdings: { CASH: 1.0 }, pRet: 0, hurdle: hurdle, stockRets: {} });
+      holdings = { CASH: 1.0 }; continue;
     }
-
-    var qTW = parseInt(document.getElementById('btQuotaTW') ? document.getElementById('btQuotaTW').value : '2') || 0;
-    var qUS = parseInt(document.getElementById('btQuotaUS') ? document.getElementById('btQuotaUS').value : '2') || 0;
-    var qETF = parseInt(document.getElementById('btQuotaETF') ? document.getElementById('btQuotaETF').value : '1') || 0;
+   
+    var qTW = parseInt($('btQuotaTW') ? $('btQuotaTW').value : '2') || 0;
+    var qUS = parseInt($('btQuotaUS') ? $('btQuotaUS').value : '2') || 0;
+    var qETF = parseInt($('btQuotaETF') ? $('btQuotaETF').value : '1') || 0;
     var quotas = { 'tw': qTW, 'us': qUS, 'etf': qETF };
-    var totalQuota = qTW + qUS + qETF;
-    var pools = { 'tw': [], 'us': [], 'etf': [] };
-    
-    var useMA60 = document.getElementById('ma60Filter') ? document.getElementById('ma60Filter').value === 'on' : true;
-    var exitMap = {};
+    var totalQuota = qTW + qUS + qETF; 
 
+    var pools = { 'tw': [], 'us': [], 'etf': [] };
+    var useMA60 = $('ma60Filter') ? $('ma60Filter').value === 'on' : true;
+
+        var exitMap = {};
     if (useMA60) {
-      Object.keys(currentHoldings).forEach(function(c) {
+      Object.keys(holdings).forEach(function(c) {
         if (c === 'CASH') return;
         var bars = DAILY[c]; if (!bars) return;
         var ma = calcMA(bars, scoreM, 60);
         var price = getPriceOnDate(bars, scoreM);
         var prevDate = getPrevWorkDay(refDaily, scoreM, 5);
         var prevMa = calcMA(bars, prevDate, 60);
-        if ((ma && price && price < ma) || (ma && prevMa && ma < prevMa)) exitMap[c] = true;
+        var belowMA = ma && price && price < ma;
+        var slopeNeg = ma && prevMa && ma < prevMa;
+        if (belowMA || slopeNeg) exitMap[c] = true;
       });
     }
 
     valid.forEach(function(r) {
-      if (r.r240 === null || r.r240 <= hurdle || DEFENSIVE.indexOf(r.s.c) !== -1 || exitMap[r.s.c]) return;
-      if (pools[r.s.pool]) pools[r.s.pool].push(r);
+      var passMom = r.r240 !== null && r.r240 > hurdle && DEFENSIVE.indexOf(r.s.c) === -1;
+      if (!passMom) return;
+      if (exitMap[r.s.c]) return;
+      var p = r.s.pool;
+      if (p === 'tw' || p === 'us' || p === 'etf') {
+        if (pools[p]) pools[p].push(r);
+      }
     });
 
-    ['tw', 'us', 'etf'].forEach(function(p) { pools[p].sort(function(a,b) { return b.score - a.score; }); });
+
+    pools['tw'].sort(function(a, b) { return b.score - a.score; });
+    pools['us'].sort(function(a, b) { return b.score - a.score; });
+    pools['etf'].sort(function(a, b) { return b.score - a.score; });
 
     var sel = [];
+
     function pickFromPool(poolName) {
-      var cands = pools[poolName], q = quotas[poolName], picked = 0;
-      var oldCands = cands.filter(function(c) { return currentHoldings[c.s.c] && c.rank < (mh + rankBuffer); });
-      oldCands.forEach(function(cand) {
-        if (picked >= q) return;
-        if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) { sel.push(cand); picked++; }
-      });
-      for (var j = 0; j < cands.length; j++) {
-        if (picked >= q) break;
-        if (oldCands.includes(cands[j])) continue;
-        if (sel.every(function(x) { return Math.abs(calcCorr(cands[j].s.c, x.s.c, scoreM)) < ct; })) { sel.push(cands[j]); picked++; }
+      var candidates = pools[poolName];
+      var quota = quotas[poolName];
+      var picked = 0;
+      
+      for (var j = 0; j < candidates.length; j++) {
+        if (picked >= quota) break; 
+        var cand = candidates[j];
+        if (sel.every(function(x) { return Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct; })) {
+          sel.push(cand);
+          picked++;
+        }
       }
     }
 
-    pickFromPool('us'); pickFromPool('tw'); pickFromPool('etf');
+        // --- 3. 執行挑股邏輯 (整合大小池切換與 MA 濾網) ---
+    const mode = document.getElementById('poolMode').value;
+    const useMA = document.getElementById('ma60Filter').value === 'on';
+    
+    // [預過濾]：將不符合 TS 或 MA 門檻的直接踢掉
+        var candidates = valid.filter(function(r) {
+      if (r.r240 === null || r.r240 <= hurdle) return false;
+      if (['TLT', 'GLD', 'SGOV'].indexOf(r.s.c) !== -1) return false;
+      if (exitMap[r.s.c]) return false;
+      return true;
+    });
 
-    var slots = totalQuota - sel.length;
+
+    if (mode === 'large') {
+      // --- 大池模式：全體大排行 ---
+      const totalMax = parseInt(document.getElementById('btH').value) || 5;
+      candidates.sort((a, b) => b.score - a.score);
+      for (var cand of candidates) {
+        if (sel.length >= totalMax) break;
+        // 跨市場相關性檢查
+        if (sel.every(x => Math.abs(calcCorr(cand.s.c, x.s.c, scoreM)) < ct)) {
+          sel.push(cand);
+        }
+      }
+    } else {
+      // --- 小池模式：維持分池抽卡 ---
+      // 需要先把合格名單重新分回 pools 變數
+      var pools = { 'tw': [], 'us': [], 'etf': [] };
+      candidates.forEach(r => { if(pools[r.s.pool]) pools[r.s.pool].push(r); });
+      
+      // 依序執行你原本定義的 pickFromPool
+      pickFromPool('us');
+      pickFromPool('tw');
+      pickFromPool('etf');
+    }
+
+    // --- 4. 防禦資產填補空缺 (維持原本邏輯) ---
+    var slots = (mode === 'large' ? (parseInt(document.getElementById('btH').value)||5) : totalQuota) - sel.length;
+    // ... 接下來接原本的 defCands 填補邏輯
+
     if (slots > 0) {
       var defCands = sc2.filter(function(r) {
         if (r.r240 === null) return false;
         if (r.s.c === 'SGOV') return r.r240 > 0;
         return (r.s.c === 'TLT' || r.s.c === 'GLD') && r.r240 > hurdle + 0.01;
       }).sort(function(a, b) { return b.r240 - a.r240; });
-      for (var jd = 0; jd < defCands.length && slots > 0; jd++) { sel.push(defCands[jd]); slots--; }
+      
+      for (var jd = 0; jd < defCands.length && slots > 0; jd++) { 
+        sel.push(defCands[jd]); 
+        slots--; 
+      }
     }
 
-    var exposure = (regimeOn && !isMarketBull) ? (regimeExp / 100) : 1.0;
-    var target = {};
+    // 💡 1. 大盤風控與曝光度設定
+    var exposure = 1.0;
+    if (regimeOn && isBearishRegime(refDaily, scoreM, 60)) {
+      exposure = regimeExp / 100;
+    }
 
+    // 💡 2. 產生放空候選名單 (Short Side)
+    var selS = [];
+    if (shortN > 0 && sel.length > 0) {
+      var longMap = {}; sel.forEach(function(r) { longMap[r.s.c] = 1; });
+      var sCands = valid.filter(function(r) { return !longMap[r.s.c]; });
+      if (shortTSF) sCands = sCands.filter(function(r) { return r.r240 !== null && r.r240 < 0; });
+      sCands.sort(function(a, b) { return a.score - b.score; });
+      for (var ks = 0; ks < sCands.length && selS.length < shortN; ks++) {
+        var candS = sCands[ks];
+        if (selS.every(function(x) { return Math.abs(calcCorr(candS.s.c, x.s.c, scoreM)) < ct; })) selS.push(candS);
+      }
+    }
+
+    // 💡 3. 完美融合 Long/Short 與 CapMode 的目標權重 (Target)
+    var target = {};
     if (!sel.length) { 
-      target['CASH'] = 1.0;
+      target['CASH'] = 1.0; 
     } else {
-      var lScale = 1.0, sScale = 0.0;
-      if (shortN > 0) {
-          var is1330 = capMode === '1330';
-          lScale = is1330 ? 1.0 : 0.5;
-          sScale = is1330 ? 0.3 : 0.5;
+      var is1330 = capMode === '1330';
+      var lScale = is1330 ? 1.0 : 0.5, sScale = is1330 ? 0.3 : 0.5;
+      
+      // 配置多頭 (Long)
+     if (wtMode === 'rank') {
+
+        var ldenom = sel.length * (sel.length + 1) / 2;
+        sel.forEach(function(r, i) { target[r.s.c] = lScale * ((sel.length - i) / ldenom) * exposure; });
+      } else {
+        if (wtMode === 'ivol') {
+  var volSum = 0;
+  var ivolArr = sel.map(function(r) {
+    var v = calcVol(DAILY[r.s.c], scoreM, 60);
+    v = (v && v > 0) ? v : 0.2;
+    volSum += 1 / v;
+    return { c: r.s.c, iv: 1 / v };
+  });
+  ivolArr.forEach(function(x) {
+    target[x.c] = (lScale * x.iv / volSum) * exposure;
+  });
+} else {
+  var lw = (lScale / sel.length) * exposure;
+  sel.forEach(function(r) { target[r.s.c] = lw; });
+}
+
       }
       
-      var baseTarget = {};
-      if (wtMode === 'eq') {
-        var lw = (lScale / sel.length) * exposure;
-        sel.forEach(function(r) { baseTarget[r.s.c] = lw; });
-      } else if (wtMode === 'rank') {
-        var ldenom = sel.length * (sel.length + 1) / 2;
-        sel.forEach(function(r, i) { baseTarget[r.s.c] = lScale * ((sel.length - i) / ldenom) * exposure; });
-      } else if (wtMode === 'ivol') {
-        var volSum = 0;
-        var ivolArr = sel.map(function(r) {
-          var v = (RAW_SCORES[r.s.c] && RAW_SCORES[r.s.c][scoringM]) ? RAW_SCORES[r.s.c][scoringM].rv : 0.2;
-          v = (v && v > 0) ? v : 0.2;
-          volSum += 1 / v; return { c: r.s.c, iv: 1 / v };
-        });
-        ivolArr.forEach(function(x) { baseTarget[x.c] = (lScale * x.iv / volSum) * exposure; });
-      }
-
-      if (freq === 'd') {
-        var newlyAdded = sel.filter(r => !currentHoldings[r.s.c]);
-        var retained = sel.filter(r => currentHoldings[r.s.c]);
-        var totalRetainedW = 0;
-        
-        retained.forEach(r => { 
-            target[r.s.c] = drifted[r.s.c] || baseTarget[r.s.c]; 
-            totalRetainedW += target[r.s.c]; 
-        });
-        
-        if (newlyAdded.length > 0) {
-            var newBaseSum = 0;
-            newlyAdded.forEach(r => { newBaseSum += baseTarget[r.s.c]; });
-            var availableCash = Math.max(0, lScale - totalRetainedW);
-            newlyAdded.forEach(r => { 
-                target[r.s.c] = newBaseSum > 0 ? availableCash * (baseTarget[r.s.c] / newBaseSum) : (availableCash / newlyAdded.length); 
-            });
-        }
-      } else {
-        target = baseTarget; 
-      }
-
-      var selS = [];
-      if (shortN > 0 && sel.length > 0) {
-        var longMap = {};
-        sel.forEach(function(r) { longMap[r.s.c] = 1; });
-        var sCands = valid.filter(function(r) { return !longMap[r.s.c]; });
-        if (shortTSF) sCands = sCands.filter(function(r) { return r.r240 !== null && r.r240 < 0; });
-        sCands.sort(function(a, b) { return a.score - b.score; });
-        for (var ks = 0; ks < sCands.length && selS.length < shortN; ks++) {
-          if (selS.every(function(x) { return Math.abs(calcCorr(sCands[ks].s.c, x.s.c, scoreM)) < ct; })) selS.push(sCands[ks]);
-        }
-      }
+      // 配置空頭 (Short)
       if (selS.length > 0) {
         var sdenom = wtMode === 'rank' ? selS.length * (selS.length + 1) / 2 : selS.length;
-        selS.forEach(function(r, i) { target[r.s.c] = -sScale * (wtMode === 'rank' ? ((selS.length - i) / sdenom) : 1 / sdenom) * exposure; });
+        selS.forEach(function(r, i) { target[r.s.c] = -sScale * (mode === 'rank' ? ((selS.length - i) / sdenom) : 1 / sdenom) * exposure; });
       }
     }
 
-    var totalW = 0; Object.keys(target).forEach(function(c) { totalW += target[c]; });
+    // 計算剩餘現金部位
+    var totalW = 0; 
+    Object.keys(target).forEach(function(c) { totalW += target[c]; });
     var cashW = 1.0 - totalW;
     if (cashW > 0.001) target['CASH'] = (target['CASH'] || 0) + cashW;
 
-    // 💡 建立區間逐日運算 (Daily MTM Pipeline)
-    var dStartIdx = refDaily.findIndex(x => x.date === prevM);
-    var dEndIdx = refDaily.findIndex(x => x.date === sigM);
-    if (dStartIdx === -1 || dEndIdx === -1) continue;
+    // 💡 4. 計算換手率與真實摩擦成本 (Cost + Impact)
+    var turnover = 0;
+    var allT = new Set([...Object.keys(holdings), ...Object.keys(target)]);
+    allT.forEach(function(c) {
+      var oldW = holdings[c] || 0; 
+      var newW = target[c] || 0;
+      turnover += Math.abs(newW - oldW);
+    });
+    turnover /= 2;
 
-    var runningNav = nav; 
-    var runningDrift = Object.assign({}, drifted); 
-    
-    for (var di = dStartIdx + 1; di <= dEndIdx; di++) {
-        var today = refDaily[di].date;
-        var yesterday = refDaily[di-1].date;
-        var dailyGrossRet = 0;
-        
-        // 保守無風險現金利率 (強制 0%)
-        var cr = typeof getTNXRate === 'function' ? getTNXRate(today.slice(0, 7)) : 0.00;
-        var baseCashDailyRet = (cr * 0.7) / 252;
+    var baseSlippage = 0.001; 
+    var impactMultiplier = Math.max(1, Math.pow(turnover / 0.2, 1.5)); 
+    var impactCost = baseSlippage * impactMultiplier;
+    var friction = (turnover * COST) + impactCost;
 
-        if (di === dStartIdx + 1) {
-            // 🚀 機構級 T+1 交易日執行引擎 (用 Open 成交 + 雙邊滑價)
-            var execTurnover = 0;
-            var newWeights = {};
-            var allAssets = new Set([...Object.keys(runningDrift), ...Object.keys(target)]);
-
-            allAssets.forEach(function(c) {
-                var w_old = runningDrift[c] || 0;
-                var w_new = target[c] || 0;
-                var deltaW = w_new - w_old;
-
-                if (Math.abs(deltaW) < 1e-6) {
-                    // 未換手，計算 Close-to-Close
-                    if (c === 'CASH') {
-                        dailyGrossRet += w_old * baseCashDailyRet;
-                        newWeights[c] = w_old * (1 + baseCashDailyRet);
-                    } else {
-                        var pT_hold = getPriceOnDate(DAILY[c], today);
-                        var pT1_hold = getPriceOnDate(DAILY[c], yesterday);
-                        var cRet_hold = (pT1_hold && pT_hold) ? (pT_hold / pT1_hold - 1) : 0;
-                        dailyGrossRet += w_old * cRet_hold;
-                        newWeights[c] = w_old * (1 + cRet_hold);
-                    }
-                    return;
-                }
-
-                execTurnover += Math.abs(deltaW);
-
-                if (c !== 'CASH') {
-                    var bars = DAILY[c];
-                    // ✅ 用 OPEN 成交（避免 Look-ahead Bias）
-                    var openP = getOpenPrice(bars, today) || getPriceOnDate(bars, yesterday); 
-                    var closeP = getPriceOnDate(bars, today);
-
-                    if (openP && closeP && openP > 0) {
-                        // ✅ 簡化 slippage（與交易方向有關）
-                        var slip = SLIPPAGE * (deltaW > 0 ? 1 : -1);
-                        var execPrice = openP * (1 + slip);
-                        var ret = (closeP / execPrice - 1);
-                        dailyGrossRet += w_new * ret;
-                        newWeights[c] = w_new * (1 + ret);
-                    } else {
-                        newWeights[c] = w_new;
-                    }
-                } else {
-                    dailyGrossRet += w_new * baseCashDailyRet;
-                    newWeights[c] = w_new * (1 + baseCashDailyRet);
-                }
-            });
-
-            execTurnover /= 2;
-
-            // ✅ 成本只用 turnover × fee（ NAV 扣減）
-            var feeCost = execTurnover * FEE;
-            dailyGrossRet -= feeCost;
-
-            // Normalize weights
-            var total = 0;
-            Object.values(newWeights).forEach(v => total += v);
-            if(total > 0) Object.keys(newWeights).forEach(c => newWeights[c] /= total);
-
-            runningDrift = newWeights;
-
-        } else {
-            // 🛑 非交易日，單純 Close-to-Close MTM
-            var nextDrift = {};
-            Object.keys(runningDrift).forEach(function(c) {
-                var w = runningDrift[c];
-                if (c === 'CASH') {
-                    dailyGrossRet += w * baseCashDailyRet;
-                    nextDrift[c] = w * (1 + baseCashDailyRet);
-                } else {
-                    var pT = getPriceOnDate(DAILY[c], today);
-                    var pT1 = getPriceOnDate(DAILY[c], yesterday);
-                    var cRet = (pT1 && pT) ? (pT / pT1 - 1) : 0;
-                    dailyGrossRet += w * cRet;
-                    nextDrift[c] = w * (1 + cRet);
-                }
-            });
-            var totalD = 0;
-            Object.values(nextDrift).forEach(v => totalD += v);
-            if(totalD > 0) Object.keys(nextDrift).forEach(c => nextDrift[c] /= totalD);
-            runningDrift = nextDrift;
-        }
-
-        runningNav *= (1 + dailyGrossRet);
-        dailyEquityCurve.push({ date: today, nav: runningNav, ret: dailyGrossRet });
-    }
-
-    nav = runningNav;
-    
-    // 💡 月頻純化 (Monthly True Reset)
-    if (freq !== 'd') {
-        drifted = Object.assign({}, target); 
+    // 💡 5. 蒐集本期報價，並【修復 UI 明細表 w 屬性】
+    var cashRet = 0;
+    if (DAILY['SGOV'] && getPriceOnDate(DAILY['SGOV'], prevM) && getPriceOnDate(DAILY['SGOV'], sigM)) {
+      var s0 = getPriceOnDate(DAILY['SGOV'], prevM), s1 = getPriceOnDate(DAILY['SGOV'], sigM);
+      cashRet = s1 / s0 - 1;
     } else {
-        drifted = runningDrift;
+      var cr = getTNXRate(scoreM), cashDivisor = (freq === "2") ? 24 : 12;
+      var CASH_FACTOR = 0.7; 
+      cashRet = (cr * CASH_FACTOR) / cashDivisor; 
     }
 
-    var b0 = getPriceOnDate(refDaily, prevM), b1 = getPriceOnDate(refDaily, sigM);
-    if (b0 && b1 && b0 > 0) bNav *= (1 + (b1 / b0 - 1));
-    var hCopy = {}; Object.keys(target).forEach(k => hCopy[k] = target[k]);
-    
     var stockRets = {};
     Object.keys(target).forEach(function(c) {
-        if (c !== 'CASH') {
-            var p0 = getPriceOnDate(DAILY[c], prevM), p1 = getPriceOnDate(DAILY[c], sigM);
-            stockRets[c] = { ret: (p0 && p1) ? (p1 / p0 - 1) : 0, w: target[c] };
-        }
+      if (c === 'CASH') { 
+        stockRets[c] = { ret: cashRet, w: target[c] }; 
+      } else {
+        var p0 = getPriceOnDate(DAILY[c], prevM), p1 = getPriceOnDate(DAILY[c], sigM);
+        stockRets[c] = { ret: (p0 && p1 && p0 > 0) ? (p1 / p0 - 1) : null, w: target[c] };
+      }
     });
 
-    var netRet = (nav / (records.length > 0 ? records[records.length-1].nav : INIT)) - 1;
+    // 💡 6. 結算本期真實毛報酬 (Gross Return) (防呆機制：缺資料強制轉現金)
+    var grossRet = 0, validTarget = {}, forcedCash = 0;
+    for (var c in target) {
+      var w = target[c], rData = stockRets[c];
+      if (rData.ret === null) { forcedCash += w; } 
+      else { grossRet += w * rData.ret; validTarget[c] = w; }
+    }
+    if (forcedCash > 0) validTarget['CASH'] = (validTarget['CASH'] || 0) + forcedCash;
 
-    // 💡 嚴格的時間對齊
-    records.push({ 
-        month: sigM,                  // 👉 UI 顯示：報酬實現歸屬日
-        entryDate: prevM,             // 👉 真實進場/判定日
-        exitDate: sigM,               // 👉 真實出場/結算日
-        period: prevM + " → " + sigM,
-        nav: nav, 
-        bNav: bNav, 
-        holdings: hCopy, 
-        pRet: netRet, 
-        hurdle: hurdle, 
-        stockRets: stockRets,
-        execCost: EXEC_COST 
-    });
+    if (!isFinite(grossRet) || grossRet <= -0.9999) grossRet = -0.9999; 
     
-    currentHoldings = drifted; 
+    // 💡 7. 統一口徑：計算真實淨報酬 (Net Return) 並更新淨值
+    // 正確的淨報酬計算：(1 - 摩擦成本) * (1 + 毛報酬) - 1
+    var netRet = (1 - friction) * (1 + grossRet) - 1;
+    nav *= (1 + netRet);
+
+    // 💡 8. 計算期末自然漂移權重 (Drift)
+    var drifted = {};
+    for (var c in validTarget) {
+      drifted[c] = (validTarget[c] * (1 + (stockRets[c]?.ret || 0))) / (1 + grossRet);
+    }
+
+    // 💡 9. 結算大盤與紀錄保存
+    var b0 = getPriceOnDate(refDaily, prevM), b1 = getPriceOnDate(refDaily, sigM);
+    if (b0 && b1 && b0 > 0) bNav *= (1 + (b1 / b0 - 1));
+
+    var hCopy = {}; Object.keys(target).forEach(k => hCopy[k] = target[k]);
+    var periodStr = prevM + " ~ " + sigM;
+    
+    records.push({ month: sigM, period: periodStr, nav: nav, bNav: bNav, holdings: hCopy, pRet: netRet, hurdle: hurdle, stockRets: stockRets });
+
+    // 💡 10. 狀態傳承
+    holdings = drifted;
   }
-  
-  records.dailyCurve = dailyEquityCurve;
   return records.length >= 6 ? records : null;
 }
 
-// --- 替換原本的 kpi 函數 ---
+
+
 function kpi(records, init) {
   var last = records[records.length - 1];
   var yrs = (new Date(last.month) - new Date(records[0].month)) / (365.25 * 86400000);
@@ -1742,15 +1651,9 @@ function kpi(records, init) {
   records.forEach(function(r) { if (r.nav > pk) pk = r.nav; var dd = (r.nav - pk) / pk; if (dd < mdd) mdd = dd; });
   var rets = records.map(function(r) { return r.pRet; });
   var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
-  
-  // 動態抓取年化乘數 (解決其他進階模組的 Sharpe 計算錯誤)
-  var freq = document.getElementById('btFreq') ? document.getElementById('btFreq').value : "1";
-  var annF = (freq === "d") ? Math.sqrt(252) : (freq === "2" ? Math.sqrt(24) : Math.sqrt(12));
-  
-  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * annF || 1;
+  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * Math.sqrt(12) || 1;
   return { cagr: cagr, mdd: mdd, sharpe: (cagr - 0.015) / std, nav: last.nav };
 }
-
 
 function runBT() {
   if (!CACHE_BUILT) { alert('Fetch data first'); return; }
@@ -1836,216 +1739,109 @@ function renderCompare(results, init, mode) {
 function renderBT(records, init, mode) {
   var recs = records; $('btRes').classList.remove('hidden');
   var last = recs[recs.length - 1];
-  
-  var dailyCurve = records.dailyCurve || [];
-  if (dailyCurve.length === 0) return; 
-
-  // 1. 真實路徑 MDD 計算 
-  var pk = init, mdd = 0;
-  dailyCurve.forEach(function(d) { 
-      if (d.nav > pk) pk = d.nav; 
-      var dd = (d.nav - pk) / pk; 
-      if (dd < mdd) mdd = dd; 
-  });
-
-  // 2. 嚴格 Daily 統計指標 (Sharpe / Sortino)
-  var rfDaily = 0.015 / 252;
-  var dRets = dailyCurve.map(d => d.ret);
-  var excess = dRets.map(r => r - rfDaily);
-  var nD = excess.length;
-
-  var meanExcess = excess.reduce((a,b) => a+b, 0) / nD;
-  var variance = excess.reduce((a,b) => a + Math.pow(b - meanExcess, 2), 0) / (nD > 1 ? nD - 1 : 1);
-  var std = Math.sqrt(variance);
-  var sharpe = std > 0 ? (meanExcess / std) * Math.sqrt(252) : 0;
-
-  var downRets = excess.filter(r => r < 0);
-  var nDown = downRets.length;
-  var downVariance = nDown > 0 ? downRets.reduce((a,b) => a + Math.pow(b, 2), 0) / nDown : 0;
-  var downStd = Math.sqrt(downVariance);
-  var sortino = downStd > 0 ? (meanExcess / downStd) * Math.sqrt(252) : 0;
-
-  var yrs = nD / 252;
+  var yrs = (new Date(last.month) - new Date(recs[0].month)) / (365.25 * 86400000);
   var tr = last.nav / init - 1, cagr = yrs > 0 ? Math.pow(1 + Math.max(tr, -0.999), 1 / yrs) - 1 : 0;
   var btr = last.bNav / init - 1, bcagr = yrs > 0 ? Math.pow(1 + Math.max(btr, -0.999), 1 / yrs) - 1 : 0;
-  var calmar = mdd < 0 ? cagr / Math.abs(mdd) : 0;
-
-  // 3. Trade Ledger 
-  var trades = [];
-  var open = {};
-  var excessCount = 0;
-
-  for (var i = 1; i < recs.length; i++) {
-      var r = recs[i];
-      var currentEntry = r.entryDate; 
-      var currentExit = r.exitDate;   
-      
-      var pb = i > 0 ? recs[i-1].bNav : init;
-      var bRet = r.bNav / pb - 1;
-      if (r.pRet > bRet) excessCount++; 
-
-      var execCost = r.execCost || 0.005;
-
-      for (var c in open) {
-          if (!r.stockRets[c] || r.stockRets[c].w === 0) {
-              var t = open[c];
-              t.ret = ((1 + t.ret) * (1 - execCost)) - 1;
-              t.outDate = currentEntry; 
-              t.days = Math.floor((new Date(t.outDate) - new Date(t.inDate)) / 86400000);
-              trades.push(t);
-              delete open[c];
-          } else {
-              open[c].ret = (1 + open[c].ret) * (1 + r.stockRets[c].ret) - 1;
-          }
-      }
-      for (var c in r.stockRets) {
-          if (!open[c] && c !== 'CASH' && r.stockRets[c].w !== 0) {
-              open[c] = {
-                  code: c, 
-                  inDate: currentEntry, 
-                  ret: ((1 + r.stockRets[c].ret) * (1 - execCost)) - 1,
-                  dir: r.stockRets[c].w < 0 ? 'Short' : 'Long'
-              };
-          }
-      }
-  }
-
-  for (var c in open) {
-      open[c].outDate = last.exitDate;
-  }
-  var allTrades = trades.concat(Object.values(open));
-  
-  var tradeWins = 0, tradeLoses = 0, tradeFlats = 0;
-  var grossWinRet = 0, grossLossRet = 0;
-
-  allTrades.forEach(t => {
-     if (t.ret > 0.005) { tradeWins++; grossWinRet += t.ret; } 
-     else if (t.ret < -0.005) { tradeLoses++; grossLossRet += Math.abs(t.ret); } 
-     else { tradeFlats++; }
-  });
-
-  var totalTrades = allTrades.length;
-  var winRate = totalTrades > 0 ? (tradeWins / totalTrades) * 100 : 0;
-  var avgWin = tradeWins > 0 ? grossWinRet / tradeWins : 0;
-  var avgLoss = tradeLoses > 0 ? grossLossRet / tradeLoses : 0;
-  var profitFactor = grossLossRet > 0 ? grossWinRet / grossLossRet : (grossWinRet > 0 ? 99 : 0);
-
+  var pk = init, mdd = 0;
+  recs.forEach(function(r) { if (r.nav > pk) pk = r.nav; var dd = (r.nav - pk) / pk; if (dd < mdd) mdd = dd; });
+  var rets = recs.map(function(r) { return r.pRet; });
+  var avg = rets.reduce(function(a, b) { return a + b; }, 0) / rets.length;
+  var std = Math.sqrt(rets.reduce(function(a, b) { return a + (b - avg) * (b - avg); }, 0) / rets.length) * Math.sqrt(12) || 1;
+  var sh = (cagr - 0.015) / std;
   var fmt = function(v, p, pl) { return (pl && v >= 0 ? '+' : '') + (p ? (v * 100).toFixed(2) + '%' : v.toFixed(2)); };
-  var modeLabel = mode === 'rank' ? 'Rank-Weighted' : (mode === 'ivol' ? 'IV-Weighted' : 'Equal-Weighted');
-
-  $('btMetrics').innerHTML = `
+  var modeLabel = mode === 'rank' ? 'Rank-Weighted' : 'Equal-Weighted';
+  
+    $('btMetrics').innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
       <div class="card" style="border-top:3px solid var(--tw);">
-        <div class="ct">Strategy Analytics (${modeLabel})</div>
+        <div class="ct">Strategy V2.0 (${modeLabel})</div>
         <div class="mr"><span>Final NAV</span><span class="mv wh">$${Math.round(last.nav).toLocaleString()}</span></div>
-        <div class="mr"><span>CAGR</span><span class="mv ${cagr >= 0 ? 'tg' : 'tr'}">${fmt(cagr, true)}</span></div>
-        <div class="mr"><span>Max Drawdown (Daily)</span><span class="mv tr">${fmt(mdd, true)}</span></div>
-        <div class="mr"><span>Sharpe Ratio <span style="font-size:9px;color:var(--mu)">(Daily-based, 252d)</span></span><span class="mv tg">${sharpe.toFixed(2)}</span></div>
-        <div class="mr"><span>Sortino Ratio <span style="font-size:9px;color:var(--mu)">(Nd base)</span></span><span class="mv tg">${sortino.toFixed(2)}</span></div>
-        <div class="mr"><span>Calmar Ratio</span><span class="mv tg">${calmar.toFixed(2)}</span></div>
+        <div class="mr"><span>Return</span><span class="mv ${tr >= 0 ? 'tg' : 'tr'}">${fmt(tr, true, true)}</span></div>
+        <div class="mr"><span>CAGR</span><span class="mv">${fmt(cagr, true)}</span></div>
+        <div class="mr"><span>MDD</span><span class="mv tr">${fmt(mdd, true)}</span></div>
+        <div class="mr"><span>Sharpe</span><span class="mv tg">${sh.toFixed(2)}</span></div>
       </div>
       <div class="card" style="border-top:3px solid var(--mu);">
         <div class="ct">TAIEX Benchmark</div>
-        <div class="mr"><span>Period Return</span><span class="mv ${btr >= 0 ? 'tg' : 'tr'}">${fmt(btr, true, true)}</span></div>
+        <div class="mr"><span>Return</span><span class="mv ${btr >= 0 ? 'tg' : 'tr'}">${fmt(btr, true, true)}</span></div>
         <div class="mr"><span>CAGR</span><span class="mv">${fmt(bcagr, true)}</span></div>
         <div class="mr"><span>Alpha</span><span class="mv ${(cagr - bcagr) >= 0 ? 'tg' : 'tr'}">${fmt(cagr - bcagr, true, true)}</span></div>
       </div>
     </div>
-
-    <div class="card" style="border-left:4px solid var(--ac); margin-bottom:12px; margin-top:8px;">
-        <div class="ct">📈 Strict Trade Ledger (Inc. Fixed Slippage & Fees)</div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
-            <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">Win Rate</span><br>
-                <b style="color:var(--gr); font-size:14px;">${winRate.toFixed(1)}%</b>
-            </div>
-            <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">Wins / Losses</span><br>
-                <b style="color:var(--tw);">${tradeWins}</b> / <b style="color:var(--re);">${tradeLoses}</b>
-            </div>
-            <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">Avg Win / Loss</span><br>
-                <b style="color:var(--gr);">${fmt(avgWin, true, true)}</b> / <b style="color:var(--re);">${fmt(-avgLoss, true)}</b>
-            </div>
-            <div class="ib2" style="margin-top:0;">
-                <span style="color:var(--mu); font-size:10px;">Profit Factor</span><br>
-                <b style="color:${profitFactor > 1.5 ? 'var(--gr)' : (profitFactor > 1 ? 'var(--ye)' : 'var(--re)')}; font-size:14px;">${profitFactor.toFixed(2)}</b>
-            </div>
-        </div>
-    </div>
   `;
 
-  var headRow = document.querySelector('#btRes thead tr');
-  var freqStr = $('btFreq') ? $('btFreq').value : "1";
-  
-  if (freqStr === 'd') {
-    if (headRow) headRow.innerHTML = '<th>Entry Date</th><th>Exit Date</th><th>Ticker</th><th>Direction</th><th>Days Held</th><th>Total Return</th>';
+  // ... 圖表繪製部分保持原樣 (Chart.js設定) ...
+
+  $('btBody').innerHTML = recs.slice().reverse().map(function(r, ri) {
+    var idx2 = recs.length - 1 - ri;
+    var pb = idx2 > 0 ? recs[idx2 - 1].bNav : init;
+    var prevNav = idx2 > 0 ? recs[idx2 - 1].nav : init;
+    var bRet = r.bNav / pb - 1;
+    var ex = r.pRet - bRet;
+    var rc = r.pRet >= 0 ? 'var(--gr)' : 'var(--re)';
+    var ec = ex >= 0 ? 'var(--gr)' : 'var(--re)';
     
-    var currentHtml = '<tr><td colspan="6" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--tw);padding:8px">👇 Current Holdings 👇</td></tr>';
-    for (var c in open) {
-        var t = open[c];
-        var rc = t.ret >= 0 ? 'var(--gr)' : 'var(--re)';
-        var nm = getStockName(t.code) || '';
-        currentHtml += `<tr style="border-top:1px solid var(--tw)">
-            <td class="mono">${t.inDate}</td>
-            <td class="mono" style="color:var(--ye)">Holding</td>
-            <td class="mono" style="font-weight:bold;color:var(--tw)">${t.code} <span style="font-size:10px;color:var(--mu)">${nm}</span></td>
-            <td class="mono">${t.dir}</td>
-            <td class="mono">${Math.floor((new Date(last.exitDate) - new Date(t.inDate)) / 86400000)}</td>
-            <td class="mono" style="color:${rc};font-weight:700">${(t.ret >= 0 ? '+' : '')}${(t.ret*100).toFixed(2)}%</td>
-        </tr>`;
-    }
-
-    var histHtml = '<tr><td colspan="6" style="background:var(--sf2);text-align:center;font-weight:bold;color:var(--mu);padding:8px">👇 Trade History 👇</td></tr>';
-    trades.reverse().forEach(t => {
-        var rc = t.ret >= 0 ? 'var(--gr)' : 'var(--re)';
-        var nm = getStockName(t.code) || '';
-        histHtml += `<tr>
-            <td class="mono" style="color:var(--mu)">${t.inDate}</td>
-            <td class="mono">${t.outDate}</td>
-            <td class="mono" style="font-weight:bold">${t.code} <span style="font-size:10px;color:var(--mu)">${nm}</span></td>
-            <td class="mono">${t.dir}</td>
-            <td class="mono">${t.days}</td>
-            <td class="mono" style="color:${rc}">${(t.ret >= 0 ? '+' : '')}${(t.ret*100).toFixed(2)}%</td>
-        </tr>`;
-    });
-    $('btBody').innerHTML = currentHtml + histHtml;
-
-  } else {
-    // 💡 修正 1 & 2：將月頻的標題修正為 Holding Period 與 TAIEX (Period)
-    if (headRow) headRow.innerHTML = '<th>Holding Period</th><th>Holdings</th><th>Hurdle%</th><th>Period Ret%</th><th>NAV</th><th>TAIEX (Period)</th><th>Alpha%</th>';
-    $('btBody').innerHTML = recs.slice().reverse().map(function(r, ri) {
-      var idx2 = recs.length - 1 - ri;
-      var pb = idx2 > 0 ? recs[idx2 - 1].bNav : init;
-      var bRet = r.bNav / pb - 1;
-      var ex = r.pRet - bRet;
-      var rc = r.pRet >= 0 ? 'var(--gr)' : 'var(--re)';
-      var ec = ex >= 0 ? 'var(--gr)' : 'var(--re)';
-      
-      var holdStr = Object.keys(r.holdings).map(function(k) {
-        var wt = r.holdings[k];
-        if (wt === 0) return '';
-        var isShort = wt < 0;
-        var col = isShort ? 'var(--bl)' : 'var(--tw)';
-        var bg = isShort ? 'var(--bld)' : 'var(--twd)';
-        var pct = Math.abs(wt * 100).toFixed(0) + '%';
-        return `<span style="background:${bg}; color:${col}; border:1px solid ${col}; padding:1px 6px; border-radius:3px; font-size:10px; font-family:monospace; margin:1px;">${k} ${pct}</span>`;
-      }).join('');
-
-      return `<tr style="border-top:2px solid var(--bd);">
-          <td class="mono" style="font-weight:700;">${r.month} <span style="font-size:10px;color:var(--mu);display:block;">${r.period}</span></td>
-          <td>${holdStr}</td>
-          <td class="mono" style="font-size:10px; color:var(--bl);">${(r.hurdle * 100).toFixed(1)}%</td>
-          <td class="mono" style="color:${rc}; font-weight:700;">${r.pRet >= 0 ? '+' : ''}${(r.pRet * 100).toFixed(2)}%</td>
-          <td class="mono" style="color:var(--tw); font-weight:700;">$${Math.round(r.nav).toLocaleString()}</td>
-          <td class="mono" style="color:var(--mu);">$${Math.round(r.bNav).toLocaleString()}</td>
-          <td class="mono" style="color:${ec}; font-weight:700;">${ex >= 0 ? '+' : ''}${(ex * 100).toFixed(2)}pp</td>
-        </tr>`;
+    var holdStr = Object.keys(r.holdings).map(function(k) {
+      var wt = r.holdings[k];
+      var isShort = wt < 0;
+      var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
+      var col = isShort ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
+      var bg = isShort ? 'var(--bld)' : (isUs ? 'var(--usd)' : 'var(--twd)');
+      var bst = isShort ? 'dashed' : 'solid';
+      var nm = getStockName(k);
+      var pct = Math.abs(wt * 100).toFixed(0) + '%';
+      var lbl = (isShort ? 'S ' : '') + k + (nm && nm !== k ? ' ' + nm : '');
+      return `<span style="background:${bg}; color:${col}; border:1px ${bst} ${col}; padding:1px 6px; border-radius:3px; font-size:10px; font-family:monospace; margin:1px;">${lbl} ${pct}</span>`;
     }).join('');
-  }
-}
 
+    var summaryRow = `
+      <tr style="border-top:2px solid var(--bd);">
+        <td class="mono" style="font-weight:700; vertical-align:top;">${r.month}</td>
+        <td style="vertical-align:top;">${holdStr}</td>
+        <td class="mono" style="font-size:10px; color:var(--bl); vertical-align:top;">${(r.hurdle * 100).toFixed(1)}%</td>
+        <td class="mono" style="color:${rc}; font-weight:700; vertical-align:top;">${r.pRet >= 0 ? '+' : ''}${(r.pRet * 100).toFixed(2)}%</td>
+        <td class="mono" style="color:var(--tw); font-weight:700; vertical-align:top;">$${Math.round(r.nav).toLocaleString()}</td>
+        <td class="mono" style="color:var(--mu); vertical-align:top;">$${Math.round(r.bNav).toLocaleString()}</td>
+        <td class="mono" style="color:${ec}; font-weight:700; vertical-align:top;">${ex >= 0 ? '+' : ''}${(ex * 100).toFixed(2)}pp</td>
+      </tr>
+    `;
 
+    var detailRows = '';
+    if (r.stockRets) {
+      Object.keys(r.stockRets).forEach(function(k) {
+        var sr = r.stockRets[k], ret = sr.ret, w = sr.w || 0;
+        var contrib = ret * w, pnl = prevNav * contrib;
+        var isShortPos = w < 0;
+        var isUs = !!(document.querySelector('[data-code="' + k + '"][data-tw="0"]'));
+        var col = isShortPos ? 'var(--bl)' : (isUs ? 'var(--us)' : 'var(--tw)');
+        var rc2 = contrib >= 0 ? 'var(--gr)' : 'var(--re)';
+        var nm = getStockName(k);
+        var dirLabel = isShortPos ? '[S] ' : '';
+        var absPct = Math.abs(w * 100).toFixed(0) + '%';
+        
+        detailRows += `
+          <tr style="background:var(--bg); opacity:0.85;">
+            <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
+            <td style="padding:3px 8px; border-bottom:1px solid var(--bd); font-family:monospace; font-size:11px; color:${col};">
+              ${dirLabel}${k}${nm && nm !== k ? ` <span style="color:var(--mu); font-size:10px;">${nm}</span>` : ''} 
+              <span style="color:var(--mu); font-size:10px;">${absPct}</span>
+            </td>
+            <td style="padding:3px 8px; border-bottom:1px solid var(--bd);"></td>
+            <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:var(--mu);">
+              ${ret >= 0 ? '+' : ''}${(ret * 100).toFixed(2)}%
+            </td>
+            <td class="mono" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:11px; color:${rc2};">
+              ${pnl >= 0 ? '+$' : '-$'}${Math.abs(Math.round(pnl)).toLocaleString()}
+            </td>
+            <td colspan="2" style="padding:3px 8px; border-bottom:1px solid var(--bd); font-size:10px; color:${rc2};">
+              contrib: ${contrib >= 0 ? '+' : ''}${(contrib * 100).toFixed(2)}%
+            </td>
+          </tr>
+        `;
+      });
+    }
+    return summaryRow + detailRows;
+  }).join('');}
 
 
 function pct(v, d) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(d === undefined ? 1 : d) + '%'; }
@@ -2234,45 +2030,19 @@ function renderST(all, hurdle, selectedCodes, rejectedMap, scoreM) {
 }
 
 // 初始化
-// --- 選單連動邏輯 (第一階段更新) ---
-// --- 選單連動邏輯 (第一階段更新) ---
 function updateMomPeriods() {
   var pSel = document.getElementById('momPeriodSet');
   if (!pSel) return;
-  
-  if (pSel.value === '2') MOM_PERIODS = [60, 20, 5];
-  else if (pSel.value === '1') MOM_PERIODS = [120, 60, 30];
-  else MOM_PERIODS = [240, 120, 60];
-
+  MOM_PERIODS = pSel.value === '1' ? [120, 60, 30] : [240, 120, 60];
   var ll = document.getElementById('zW_long_lbl');
   var ml = document.getElementById('zW_mid_lbl');
   var sl = document.getElementById('zW_short_lbl');
   if (ll) ll.textContent = 'z' + MOM_PERIODS[0] + 'd %';
   if (ml) ml.textContent = 'z' + MOM_PERIODS[1] + 'd % (fixed)';
   if (sl) sl.textContent = 'z' + MOM_PERIODS[2] + 'd %';
-  
   CACHE_BUILT = false;
-  if (typeof updCacheSt === 'function') updCacheSt();
-  
-  // 自動快取機制：切換參數後，自動在背景瞬間重建對應頻率的快取
-  if (typeof buildCache === 'function' && typeof DAILY !== 'undefined' && Object.keys(DAILY).length > 2) {
-      buildCache();
-  }
+  updCacheSt();
 }
-
-function syncFreqParams() {
-  var freqEl = document.getElementById('btFreq');
-  var pSel = document.getElementById('momPeriodSet');
-  if (!freqEl || !pSel) return;
-  
-  if (freqEl.value === 'd') { pSel.value = '2'; } 
-  else if (freqEl.value === '2') { pSel.value = '1'; } 
-  else { pSel.value = '0'; }
-  updateMomPeriods(); // 觸發連動並自動重算快取
-}
-
-
-
 
 
 function normMomWeights(changed) {
