@@ -451,7 +451,7 @@ tr:hover{background:var(--sf2)}
       <div class="fi"><label>Breadth 權重 (%)</label><input type="number" id="drsWBRD" value="15" min="0" max="100" onchange="updateDRSWeights()"></div>
       <div class="fi"><label>EMA 平滑 (日)</label><input type="number" id="drsSmooth" value="10" min="5" max="63" onchange="updateDRSWeights()"></div>
       <div class="fi"><label>窗口 (日)</label><input type="number" id="drsWin" value="126" min="63" max="504" onchange="updateDRSWeights()"></div>
-      <div class="fi"><label>訊號延續 (日)</label><input type="number" id="drsHold" value="20" min="5" max="60" onchange="updateDRSWeights()"></div>
+      <div class="fi"><label>訊號延續 (日)</label><input type="number" id="drsHold" value="60" min="5" max="120" onchange="updateDRSWeights()"></div>
       <div class="fi"><label>回測啟用總經閥門</label>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;margin-top:6px">
           <input type="checkbox" id="useDRSGate" style="width:14px;accent-color:var(--re)" checked>
@@ -3196,7 +3196,7 @@ var DRS_CFG = {
   w_brd: 0.15,
   smooth: 10,
   win: 126,
-  hold: 20
+  hold: 60
 };
 
 function drsLevel(v) {
@@ -3307,11 +3307,11 @@ function drsExposure(score) {
     return { exposure: 0.00, label: 'RED', color: 'var(--re)' };
   }
 
-  if (score >= 0.60) {
+  if (score >= 0.70) {
     return { exposure: 0.50, label: 'ORANGE', color: 'var(--ye)' };
   }
 
-  if (score >= 0.30) {
+  if (score >= 0.50) {
     return { exposure: 0.75, label: 'YELLOW', color: 'var(--ac)' };
   }
 
@@ -3449,7 +3449,7 @@ function updateDRSWeights() {
   DRS_CFG.w_brd  = gv('drsWBRD') / 100;
   DRS_CFG.smooth = parseInt($('drsSmooth').value, 10) || 10;
   DRS_CFG.win    = parseInt($('drsWin').value, 10) || 126;
-  DRS_CFG.hold   = parseInt($('drsHold').value, 10) || 20;
+  DRS_CFG.hold   = parseInt($('drsHold').value, 10) || 60;
 
   calcDRSCurrent();
 }
