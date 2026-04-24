@@ -1948,7 +1948,7 @@ function renderST(all,hurdle,selectedCodes,rejectedMap,scoreM) {
   var zf=function(v){return (v!==null?(v>=0?'+':'')+v.toFixed(2):'-');};
   var pf=function(v){return (v!==null?(v>=0?'+':'')+(v*100).toFixed(1)+'%':'-');};
   var html='';
-  [''tw','us','jp','cn','etf''].forEach(function(pKey){
+  ['tw','us','jp','cn','etf''].forEach(function(pKey){
     var pStocks=all.filter(function(r){return r.s.pool===pKey;}).sort(function(a,b){return b.score-a.score;});
     if(!pStocks.length)return;
     html+='<tr><td colspan="12" style="background:var(--sf2);color:var(--tx);font-weight:700;text-align:center;padding:8px;">'+pKey.toUpperCase()+' \u7af6\u722d\u6392\u884c</td></tr>';
