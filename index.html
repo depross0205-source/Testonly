@@ -1230,19 +1230,18 @@ function runBTcore(mh, mode) {
   var rawS = $('btS') ? ($('btS').value||'').trim().slice(0,10) : '';
   var rawE = $('btE') ? ($('btE').value||'').trim().slice(0,10) : '';
   var lagEl = document.querySelector('input[name="lagMode"]:checked');
-  var LAG = lagEl ? parseInt(lagEl.value) : 1;
-  var MIN=1, cS=MIN;
-  if (rawS) { for(var i=cS; i<allM.length; i++){ if(allM[i]>=rawS){ cS=i; break; } } }
-  var cE=allM.length-1;
-  if (rawE) { for(var i2=cE; i2>=cS; i2--){ if(allM[i2]<=rawE){ cE=i2; break; } } }
-  if (cS>cE) return null;
+var LAG = lagEl ? parseInt(lagEl.value) : 1;
 
-  var INIT=gv('btCap')||100000, COST=(gv('btC')||0.3)/100, ct=gv('corrT')||0.75;
-  var shortN=parseInt($('btSN')?$('btSN').value:'0')||0;
-  var capMode=document.querySelector('input[name="capMode"]:checked')?document.querySelector('input[name="capMode"]:checked').value:'neutral';
-  var wtModeEl=document.querySelector('input[name="wtMode"]:checked');
-  var wtMode=wtModeEl?wtModeEl.value:'eq';
-  var shortTSF=!!($('btSTSF')&&$('btSTSF').checked);
+var shortN=parseInt($('btSN')?$('btSN').value:'0')||0;
+
+var capMode=document.querySelector('input[name="capMode"]:checked')
+  ? document.querySelector('input[name="capMode"]:checked').value
+  : 'neutral';
+
+var wtModeEl=document.querySelector('input[name="wtMode"]:checked');
+var wtMode=wtModeEl?wtModeEl.value:'eq';
+
+var shortTSF=!!($('btSTSF')&&$('btSTSF').checked);
   var regimeOn=$('btRegime')&&$('btRegime').value==='on';
   var regimeExp=gv('btRegimeExp')||100;
   var useMA60=$('ma60Filter')?$('ma60Filter').value==='on':true;
@@ -1368,20 +1367,27 @@ if (poolModeSetting === 'large') {
     }
 
     var selS=[];
-    if (shortN>0) {
-      var longMap={};
-      sel.forEach(function(r){ longMap[r.s.c]=1; });
-      var sCands=valid.filter(function(r){ return !longMap[r.s.c]; });
-      if (shortTSF) sCands=sCands.filter(function(r){ return r.r240!==null&&r.r240<0; });
-      sCands.sort(function(a,b){ return a.score-b.score; });
-      for (var ks=0; ks<sCands.length&&selS.length<shortN; ks++) {
-        var candS=sCands[ks];
-        if (selS.every(function(x){ return Math.abs(calcCorr(candS.s.c,x.s.c,scoreM))<ct; })) selS.push(candS);
-      }
-    }
+if (shortN>0) {
+  var longMap={};
+  sel.forEach(function(r){ longMap[r.s.c]=1; });
+  var sCands=valid.filter(function(r){ return !longMap[r.s.c]; });
+  if (shortTSF) sCands=sCands.filter(function(r){ return r.r240!==null&&r.r240<0; });
+  sCands.sort(function(a,b){ return a.score-b.score; });
+  for (var ks=0; ks<sCands.length&&selS.length<shortN; ks++) {
+    var candS=sCands[ks];
+    if (selS.every(function(x){ return Math.abs(calcCorr(candS.s.c,x.s.c,scoreM))<ct; })) selS.push(candS);
+  }
+}
 
+console.log(
+  'capMode=', capMode,
+  'shortN=', shortN,
+  'shortTSF=', shortTSF,
+  'selS=', selS ? selS.length : 0,
+  'selS codes=', selS.map(function(x){ return x.s.c; })
+);
 
-    var exposure=1.0;
+var exposure=1.0;var exposure=1.0;
     if (regimeOn&&isBearishRegime(refDaily,scoreM,60)) exposure=regimeExp/100;
 
     var target={};
