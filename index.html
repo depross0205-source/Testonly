@@ -3263,7 +3263,11 @@ var rspBars = MACRO_DATA['RSP'] || DAILY['RSP'] || MACRO_DATA['SPY'] || DAILY['S
     let z_vx=(vx[j]-mean(vxW))/std(vxW,mean(vxW));
     let z_br=(br[j]-mean(brW))/std(brW,mean(brW));
 
-    raw[j]=DRS_CFG.w_hy*z_hy+DRS_CFG.w_yc*z_yc+DRS_CFG.w_vix*z_vx+DRS_CFG.w_brd*z_br;
+    raw[j] =
+    (DRS_CFG.w_hy * z_hy
+  + DRS_CFG.w_yc * z_yc
+  + DRS_CFG.w_vix * z_vx
+  + DRS_CFG.w_brd * z_br) * 3;
   }
 
   var sm = ema(raw, DRS_CFG.smooth);
