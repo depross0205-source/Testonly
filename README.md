@@ -1,1 +1,1 @@
-# Testonly（台股動能已完成）
+# Testonly（國際版）
