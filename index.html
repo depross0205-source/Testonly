@@ -676,10 +676,10 @@ function getEnabledStocks() {
     var region = 'other';
 
     if (title.indexOf('[JP]') !== -1) {
-      pool = 'us';
+      pool = 'jp';
       region = 'jp';
     } else if (title.indexOf('[CN]') !== -1 || title.indexOf('[HK]') !== -1) {
-      pool = 'us';
+      pool = 'cn';
       region = 'cn';
     }
 
@@ -1168,13 +1168,8 @@ function calcAllScores(dateStr) {
     var zMs=crossZ(rMs,99),zBs=crossZ(rBs,2),zSs=crossZ(rSs,99),zVs=crossZ(rVs,2),zKs=crossZ(rKs,99);
     return infos.map(function(d,i){ return {s:d.s, score:(w.m*zMs[i]+w.b*zBs[i]+w.s*zSs[i]+w.v*zVs[i]+w.k*zKs[i]), zm:zMs[i],zb:zBs[i],zs:zSs[i],zv:zVs[i],zk:zKs[i],r240:d.raw.r240}; });
   } else {
-    var poolGroups = {jp:[], cn:[], other:[]};
-
-stocks.forEach(function(s){
-  if (s.region === 'jp') poolGroups.jp.push(s);
-  else if (s.region === 'cn') poolGroups.cn.push(s);
-  else poolGroups.other.push(s);
-});
+    var poolGroups={'tw':[],'us':[],'etf':[],'other':[]};
+    stocks.forEach(function(s){ if(poolGroups[s.pool]) poolGroups[s.pool].push(s); });
     var finalScores=[];
     Object.keys(poolGroups).forEach(function(p){
       var pStocks=poolGroups[p]; if(!pStocks.length) return;
@@ -1230,18 +1225,19 @@ function runBTcore(mh, mode) {
   var rawS = $('btS') ? ($('btS').value||'').trim().slice(0,10) : '';
   var rawE = $('btE') ? ($('btE').value||'').trim().slice(0,10) : '';
   var lagEl = document.querySelector('input[name="lagMode"]:checked');
-var LAG = lagEl ? parseInt(lagEl.value) : 1;
+  var LAG = lagEl ? parseInt(lagEl.value) : 1;
+  var MIN=1, cS=MIN;
+  if (rawS) { for(var i=cS; i<allM.length; i++){ if(allM[i]>=rawS){ cS=i; break; } } }
+  var cE=allM.length-1;
+  if (rawE) { for(var i2=cE; i2>=cS; i2--){ if(allM[i2]<=rawE){ cE=i2; break; } } }
+  if (cS>cE) return null;
 
-var shortN=parseInt($('btSN')?$('btSN').value:'0')||0;
-
-var capMode=document.querySelector('input[name="capMode"]:checked')
-  ? document.querySelector('input[name="capMode"]:checked').value
-  : 'neutral';
-
-var wtModeEl=document.querySelector('input[name="wtMode"]:checked');
-var wtMode=wtModeEl?wtModeEl.value:'eq';
-
-var shortTSF=!!($('btSTSF')&&$('btSTSF').checked);
+  var INIT=gv('btCap')||100000, COST=(gv('btC')||0.3)/100, ct=gv('corrT')||0.75;
+  var shortN=parseInt($('btSN')?$('btSN').value:'0')||0;
+  var capMode=document.querySelector('input[name="capMode"]:checked')?document.querySelector('input[name="capMode"]:checked').value:'neutral';
+  var wtModeEl=document.querySelector('input[name="wtMode"]:checked');
+  var wtMode=wtModeEl?wtModeEl.value:'eq';
+  var shortTSF=!!($('btSTSF')&&$('btSTSF').checked);
   var regimeOn=$('btRegime')&&$('btRegime').value==='on';
   var regimeExp=gv('btRegimeExp')||100;
   var useMA60=$('ma60Filter')?$('ma60Filter').value==='on':true;
@@ -1367,27 +1363,20 @@ if (poolModeSetting === 'large') {
     }
 
     var selS=[];
-if (shortN>0) {
-  var longMap={};
-  sel.forEach(function(r){ longMap[r.s.c]=1; });
-  var sCands=valid.filter(function(r){ return !longMap[r.s.c]; });
-  if (shortTSF) sCands=sCands.filter(function(r){ return r.r240!==null&&r.r240<0; });
-  sCands.sort(function(a,b){ return a.score-b.score; });
-  for (var ks=0; ks<sCands.length&&selS.length<shortN; ks++) {
-    var candS=sCands[ks];
-    if (selS.every(function(x){ return Math.abs(calcCorr(candS.s.c,x.s.c,scoreM))<ct; })) selS.push(candS);
-  }
-}
+    if (shortN>0) {
+      var longMap={};
+      sel.forEach(function(r){ longMap[r.s.c]=1; });
+      var sCands=valid.filter(function(r){ return !longMap[r.s.c]; });
+      if (shortTSF) sCands=sCands.filter(function(r){ return r.r240!==null&&r.r240<0; });
+      sCands.sort(function(a,b){ return a.score-b.score; });
+      for (var ks=0; ks<sCands.length&&selS.length<shortN; ks++) {
+        var candS=sCands[ks];
+        if (selS.every(function(x){ return Math.abs(calcCorr(candS.s.c,x.s.c,scoreM))<ct; })) selS.push(candS);
+      }
+    }
 
-console.log(
-  'capMode=', capMode,
-  'shortN=', shortN,
-  'shortTSF=', shortTSF,
-  'selS=', selS ? selS.length : 0,
-  'selS codes=', selS.map(function(x){ return x.s.c; })
-);
 
-var exposure=1.0;var exposure=1.0;
+    var exposure=1.0;
     if (regimeOn&&isBearishRegime(refDaily,scoreM,60)) exposure=regimeExp/100;
 
     var target={};
@@ -1924,28 +1913,12 @@ function renderSig(sel,wk,all,date,hurdle) {
   var pf=function(v){return v!==null?(v>=0?'+':'')+(v*100).toFixed(1)+'%':'-';};
   var tnx=getTNXRate(date);
   var html='<div style="font-size:11px;color:var(--mu);margin-bottom:9px">Date: <b style="color:var(--tw)">'+date+'</b> | ^TNX: <b style="color:var(--bl)">'+(tnx*100).toFixed(2)+'%</b> | Hurdle: <b style="color:var(--ye)">'+(hurdle*100).toFixed(2)+'%</b></div>';
-  var selPools = {jp:[], cn:[], other:[]};
-
-sel.forEach(function(r){
-  var p = r.s.region || r.s.pool || 'other';
-  if (p === 'jp') selPools.jp.push(r);
-  else if (p === 'cn') selPools.cn.push(r);
-  else selPools.other.push(r);
-});
-
-var poolNames = {
-  jp: 'JP 日股配置',
-  cn: 'CN/HK 中概配置',
-  other: 'OTHER'
-};
-
-var poolColors = {
-  jp: 'var(--us)',
-  cn: 'var(--tw)',
-  other: 'var(--mu)'
-};
-
-['jp','cn','other'].forEach(function(p){
+  var selPools={'us':[],'tw':[],'etf':[]};
+  sel.forEach(function(r){ var p=r.s.pool; if(p==='us'||p==='tw'||p==='etf') selPools[p].push(r); });
+  // FIX5: pure ASCII/unicode labels, no surrogate-pair emoji
+  var poolNames={'us':'US \u7f8e\u80a1\u914d\u7f6e','tw':'TW \u53f0\u80a1\u914d\u7f6e','etf':'ETF \u914d\u7f6e'};
+  var poolColors={'us':'var(--us)','tw':'var(--tw)','etf':'var(--ac)'};
+  ['jp','cn'].forEach(function(p){
     var pItems=selPools[p];
     if(!pItems||!pItems.length)return;
     html+='<div style="font-size:13px;font-weight:700;color:'+poolColors[p]+';margin:16px 0 6px;border-bottom:1px solid '+poolColors[p]+';padding-bottom:4px">'+poolNames[p]+' (\u5165\u9078 '+pItems.length+' \u6a94)</div><div class="sg">';
