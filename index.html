@@ -676,10 +676,10 @@ function getEnabledStocks() {
     var region = 'other';
 
     if (title.indexOf('[JP]') !== -1) {
-      pool = 'jp';
+      pool = 'us';
       region = 'jp';
     } else if (title.indexOf('[CN]') !== -1 || title.indexOf('[HK]') !== -1) {
-      pool = 'cn';
+      pool = 'us';
       region = 'cn';
     }
 
@@ -1168,8 +1168,13 @@ function calcAllScores(dateStr) {
     var zMs=crossZ(rMs,99),zBs=crossZ(rBs,2),zSs=crossZ(rSs,99),zVs=crossZ(rVs,2),zKs=crossZ(rKs,99);
     return infos.map(function(d,i){ return {s:d.s, score:(w.m*zMs[i]+w.b*zBs[i]+w.s*zSs[i]+w.v*zVs[i]+w.k*zKs[i]), zm:zMs[i],zb:zBs[i],zs:zSs[i],zv:zVs[i],zk:zKs[i],r240:d.raw.r240}; });
   } else {
-    var poolGroups={'tw':[],'us':[],'etf':[],'other':[]};
-    stocks.forEach(function(s){ if(poolGroups[s.pool]) poolGroups[s.pool].push(s); });
+    var poolGroups = {jp:[], cn:[], other:[]};
+
+stocks.forEach(function(s){
+  if (s.region === 'jp') poolGroups.jp.push(s);
+  else if (s.region === 'cn') poolGroups.cn.push(s);
+  else poolGroups.other.push(s);
+});
     var finalScores=[];
     Object.keys(poolGroups).forEach(function(p){
       var pStocks=poolGroups[p]; if(!pStocks.length) return;
@@ -1913,12 +1918,28 @@ function renderSig(sel,wk,all,date,hurdle) {
   var pf=function(v){return v!==null?(v>=0?'+':'')+(v*100).toFixed(1)+'%':'-';};
   var tnx=getTNXRate(date);
   var html='<div style="font-size:11px;color:var(--mu);margin-bottom:9px">Date: <b style="color:var(--tw)">'+date+'</b> | ^TNX: <b style="color:var(--bl)">'+(tnx*100).toFixed(2)+'%</b> | Hurdle: <b style="color:var(--ye)">'+(hurdle*100).toFixed(2)+'%</b></div>';
-  var selPools={'us':[],'tw':[],'etf':[]};
-  sel.forEach(function(r){ var p=r.s.pool; if(p==='us'||p==='tw'||p==='etf') selPools[p].push(r); });
-  // FIX5: pure ASCII/unicode labels, no surrogate-pair emoji
-  var poolNames={'us':'US \u7f8e\u80a1\u914d\u7f6e','tw':'TW \u53f0\u80a1\u914d\u7f6e','etf':'ETF \u914d\u7f6e'};
-  var poolColors={'us':'var(--us)','tw':'var(--tw)','etf':'var(--ac)'};
-  ['jp','cn'].forEach(function(p){
+  var selPools = {jp:[], cn:[], other:[]};
+
+sel.forEach(function(r){
+  var p = r.s.region || r.s.pool || 'other';
+  if (p === 'jp') selPools.jp.push(r);
+  else if (p === 'cn') selPools.cn.push(r);
+  else selPools.other.push(r);
+});
+
+var poolNames = {
+  jp: 'JP 日股配置',
+  cn: 'CN/HK 中概配置',
+  other: 'OTHER'
+};
+
+var poolColors = {
+  jp: 'var(--us)',
+  cn: 'var(--tw)',
+  other: 'var(--mu)'
+};
+
+['jp','cn','other'].forEach(function(p){
     var pItems=selPools[p];
     if(!pItems||!pItems.length)return;
     html+='<div style="font-size:13px;font-weight:700;color:'+poolColors[p]+';margin:16px 0 6px;border-bottom:1px solid '+poolColors[p]+';padding-bottom:4px">'+poolNames[p]+' (\u5165\u9078 '+pItems.length+' \u6a94)</div><div class="sg">';
