@@ -305,7 +305,8 @@ tr:hover{background:var(--sf2)}
       <div class="fi"><label>台股配額</label><input type="number" id="btQuotaTW" value="0" onchange="updTotalH()"></div>
       <div class="fi"><label>美股配額</label><input type="number" id="btQuotaUS" value="0" onchange="updTotalH()"></div>
       <div class="fi"><label>ETF 配額</label><input type="number" id="btQuotaETF" value="0" onchange="updTotalH()"></div>
-     label>區域ETF配額</label>
+     <div class="fi">
+  <label>區域ETF配額</label>
   <select id="btRegionQuotaMode">
     <option value="off" selected>Off</option>
     <option value="on">On - Split US quota by ETF</option>
@@ -1363,11 +1364,54 @@ if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
   quotaMap.jp = rq.jp;
   quotaMap.cn = rq.cn;
 
+  // 若某個區域股池被你手動全關，或整段拿掉，配額不要浪費，回補給仍有候選的區域
+  var regionKeys = ['us','jp','cn'];
+  var lostQuota = 0;
+
+  regionKeys.forEach(function(k){
+    if (!localPools[k] || localPools[k].length === 0) {
+      lostQuota += quotaMap[k] || 0;
+      quotaMap[k] = 0;
+    }
+  });
+
+  if (lostQuota > 0) {
+    var alive = regionKeys.filter(function(k){
+      return localPools[k] && localPools[k].length > 0;
+    });
+
+    if (alive.length > 0) {
+      // 優先回補給原本 US，其次平均分給剩餘區域
+      if (alive.indexOf('us') !== -1) {
+        quotaMap.us += lostQuota;
+      } else {
+        for (var lq=0; lq<lostQuota; lq++) {
+          quotaMap[alive[lq % alive.length]] += 1;
+        }
+      }
+    }
+  }
+
   sl('btLog',
-    'Region ETF quota ON | US=' + rq.us + ' JP=' + rq.jp + ' CN=' + rq.cn,
+    'Region ETF quota ON | US=' + quotaMap.us +
+    ' JP=' + quotaMap.jp +
+    ' CN=' + quotaMap.cn,
     true
   );
 }
+
+['tw','us','jp','cn','etf'].forEach(function(p) {
+  localPools[p].sort(function(a,b){ return b.score-a.score; });
+  var quota=quotaMap[p], picked=0;
+  for (var j=0; j<localPools[p].length; j++) {
+    if (picked>=quota) break;
+    var cand=localPools[p][j];
+    if (sel.every(function(x){ return Math.abs(calcCorr(cand.s.c,x.s.c,scoreM))<ct; })) {
+      sel.push(cand);
+      picked++;
+    }
+  }
+});
       ['us','tw','etf'].forEach(function(p) {
         localPools[p].sort(function(a,b){ return b.score-a.score; });
         var quota=quotaMap[p], picked=0;
@@ -1379,7 +1423,15 @@ if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
       });
     }
 
-        var totalQuota = poolModeSetting==='large' ? (parseInt(document.getElementById('btH').value)||5) : (parseInt($('btQuotaTW')?$('btQuotaTW').value:'2')||0)+(parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0)+(parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0);
+        var totalQuota = poolModeSetting==='large'
+  ? (parseInt(document.getElementById('btH').value)||5)
+  : (quotaMap ? (
+      (quotaMap.tw||0) + (quotaMap.us||0) + (quotaMap.jp||0) + (quotaMap.cn||0) + (quotaMap.etf||0)
+    ) : (
+      (parseInt($('btQuotaTW')?$('btQuotaTW').value:'2')||0)
+      + (parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0)
+      + (parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0)
+    ));
     var slots = totalQuota - sel.length;
     if (slots > 0) {
       var hasSGOV = DAILY['SGOV'] && DAILY['SGOV'].length > 0 && getPriceOnDate(DAILY['SGOV'], scoreM) !== null;
