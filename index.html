@@ -442,20 +442,20 @@ tr:hover{background:var(--sf2)}
     </div>
     <div class="log" id="drsLog"></div>
   </div>
-  <div class="card">
+  <<div class="card">
     <div class="ct">總經閥門參數設定</div>
     <div class="g3">
-      <div class="fi"><label>HY 權重 (%)</label><input type="number" id="drsWHY" value="30" min="0" max="100" onchange="updateDRSWeights()"></div>
-      <div class="fi"><label>YC 權重 (%)</label><input type="number" id="drsWYC" value="25" min="0" max="100" onchange="updateDRSWeights()"></div>
-      <div class="fi"><label>VIX 權重 (%)</label><input type="number" id="drsWVIX" value="20" min="0" max="100" onchange="updateDRSWeights()"></div>
+      <div class="fi"><label>HY 權重 (%)</label><input type="number" id="drsWHY" value="35" min="0" max="100" onchange="updateDRSWeights()"></div>
+      <div class="fi"><label>YC 權重 (%)</label><input type="number" id="drsWYC" value="20" min="0" max="100" onchange="updateDRSWeights()"></div>
+      <div class="fi"><label>VIX 權重 (%)</label><input type="number" id="drsWVIX" value="30" min="0" max="100" onchange="updateDRSWeights()"></div>
       <div class="fi"><label>Breadth 權重 (%)</label><input type="number" id="drsWBRD" value="15" min="0" max="100" onchange="updateDRSWeights()"></div>
-      <div class="fi"><label>EMA 平滑 (日)</label><input type="number" id="drsSmooth" value="21" min="5" max="63" onchange="updateDRSWeights()"></div>
-      <div class="fi"><label>窗口 (日)</label><input type="number" id="drsWin" value="252" min="126" max="504" onchange="updateDRSWeights()"></div>
-      <div class="fi"><label>訊號延續 (日)</label><input type="number" id="drsHold" value="30" min="10" max="60" onchange="updateDRSWeights()"></div>
+      <div class="fi"><label>EMA 平滑 (日)</label><input type="number" id="drsSmooth" value="10" min="5" max="63" onchange="updateDRSWeights()"></div>
+      <div class="fi"><label>窗口 (日)</label><input type="number" id="drsWin" value="126" min="63" max="504" onchange="updateDRSWeights()"></div>
+      <div class="fi"><label>訊號延續 (日)</label><input type="number" id="drsHold" value="20" min="5" max="60" onchange="updateDRSWeights()"></div>
       <div class="fi"><label>回測啟用總經閥門</label>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;margin-top:6px">
           <input type="checkbox" id="useDRSGate" style="width:14px;accent-color:var(--re)" checked>
-          <span>啟用總經減碼</span>
+          <span>啟用總經持股比例控制</span>
         </label>
       </div>
     </div>
@@ -1460,7 +1460,7 @@ if (cdOn) {
       }
 
       if ($('useDRSGate') && $('useDRSGate').checked) {
-        targetAfter = applyDRSGate(targetAfter, scoreM, true);
+        targetAfter = applyDRSGate(target, scoreM, true, LAG);
       }
 
       var retCD2 = 0;
@@ -1685,7 +1685,7 @@ var fillAsset = hasSGOV ? 'SGOV' : 'CASH';
   }
 
     var useDRSEl = document.getElementById('useDRSGate');
-  if (useDRSEl && useDRSEl.checked) target = applyDRSGate(target, scoreM, true);
+  if (useDRSEl && useDRSEl.checked) target = applyDRSGate(target, scoreM, true, LAG);
 }   // ← 補這個，關閉 if (!sel.length) 的 else 區塊
 
 var totalW=0;
@@ -3195,8 +3195,8 @@ var DRS_CFG = {
   w_vix: 0.30,
   w_brd: 0.15,
   smooth: 10,
-  hold: 20,
-  win: 126
+  win: 126,
+  hold: 20
 };
 
 function drsLevel(v) {
@@ -3275,7 +3275,7 @@ var holdLeft = 0;
 var peak = -Infinity;
 
 for (let i = 0; i < held.length; i++) {
-  if (held[i] >= 0.65) {
+  if (held[i] >= 0.50) {
     holdLeft = holdDays;
     peak = held[i];
   } else if (holdLeft > 0) {
@@ -3291,49 +3291,96 @@ dates.forEach((d,i)=>map[d]={drs:held[i],raw:raw[i],smoothed:sm[i]});
 
 return {map:map,dates:dates};
 }
+// ==========================
+// DRS EXPOSURE / LAG HELPERS
+// ==========================
+function drsExposure(score) {
+  if (!isFinite(score)) {
+    return { exposure: 1.00, label: 'GREEN', color: 'var(--gr)' };
+  }
 
+  if (score >= 1.30) {
+    return { exposure: 0.00, label: 'RED', color: 'var(--re)' };
+  }
+
+  if (score >= 0.90) {
+    return { exposure: 0.50, label: 'ORANGE', color: 'var(--ye)' };
+  }
+
+  if (score >= 0.50) {
+    return { exposure: 0.75, label: 'YELLOW', color: 'var(--ac)' };
+  }
+
+  return { exposure: 1.00, label: 'GREEN', color: 'var(--gr)' };
+}
+
+// 保留舊名稱，讓既有 runDRSCompare / 其他檢查不會失效
+function drsLevel(score) {
+  var ex = drsExposure(score);
+  return {
+    reduce: 1 - ex.exposure,
+    exposure: ex.exposure,
+    label: ex.label,
+    color: ex.color
+  };
+}
+
+// 依照主回測 Signal Lag 取得 DRS 使用日期
+function getDRSUseDate(dateStr, lagDays) {
+  if (!DRS_RESULT || !DRS_RESULT.dates || !DRS_RESULT.dates.length) return null;
+
+  var valid = [];
+  for (var i = 0; i < DRS_RESULT.dates.length; i++) {
+    if (DRS_RESULT.dates[i] <= dateStr) valid.push(DRS_RESULT.dates[i]);
+  }
+
+  if (!valid.length) return null;
+
+  var idx = valid.length - 1 - (lagDays || 0);
+  if (idx < 0) idx = 0;
+
+  return valid[idx] || null;
+}
 // ==========================
 // APPLY DRS
 // ==========================
-function applyDRSGate(target, dateStr, useDRS) {
+function applyDRSGate(target, dateStr, useDRS, lagDays) {
   if (!useDRS || !DRS_RESULT || !DRS_RESULT.dates || !DRS_RESULT.dates.length) return target;
 
-  // 先找「<= dateStr 的最近一個 DRS 交易日」
-  var useDate = null;
-  for (var i = DRS_RESULT.dates.length - 1; i >= 0; i--) {
-    if (DRS_RESULT.dates[i] <= dateStr) {
-      useDate = DRS_RESULT.dates[i];
-      break;
-    }
-  }
-
+  var useDate = getDRSUseDate(dateStr, lagDays || 0);
   if (!useDate) return target;
 
   var pt = DRS_RESULT.map[useDate];
   if (!pt) return target;
 
-  var lv = drsLevel(pt.drs);
-  if (lv.reduce <= 0) return target;
+  var ex = drsExposure(pt.drs);
 
-  var newT = {}, cash = 0;
+  // GREEN 狀態不調整
+  if (ex.exposure >= 0.999999) return target;
+
+  var newT = {};
+  var defensive = 0;
 
   for (var c in target) {
-    var w = target[c];
+    var w = target[c] || 0;
 
     if (c === 'CASH' || c === 'SGOV') {
-      newT[c] = w;
-    } else {
-      var s = w * (1 - lv.reduce);
-      newT[c] = s;
-      cash += (w - s);
+      defensive += w;
+      continue;
     }
+
+    var scaled = w * ex.exposure;
+    newT[c] = scaled;
+    defensive += (w - scaled);
   }
 
-  // 優先回到 SGOV，其次 CASH
-  if (DAILY['SGOV']) {
-    newT['SGOV'] = (newT['SGOV'] || 0) + cash;
-  } else {
-    newT['CASH'] = (newT['CASH'] || 0) + cash;
+  // 剩餘資金優先進 SGOV，否則 CASH
+  if (defensive > 0) {
+    if (DAILY['SGOV']) {
+      newT['SGOV'] = (newT['SGOV'] || 0) + defensive;
+    } else {
+      newT['CASH'] = (newT['CASH'] || 0) + defensive;
+    }
   }
 
   return newT;
@@ -3355,41 +3402,50 @@ function calcDRSCurrent(){
 
   var lastDate = ts.dates[ts.dates.length - 1];
   var pt = ts.map[lastDate];
-  var lv = drsLevel(pt.drs);
+  var ex = drsExposure(pt.drs);
 
-  // 👉 更新上方 badge（你 UI 有那個 DRS: --）
   var badge = $('drsBadge');
   if (badge) {
-    badge.textContent = '總經閥門: ' + pt.drs.toFixed(2) + ' | ' + lv.label + ' | ' + lastDate;
-    badge.style.color = lv.color;
-    badge.style.borderColor = lv.color;
+    badge.textContent =
+      '總經閥門: ' + pt.drs.toFixed(2) +
+      ' | ' + ex.label +
+      ' | 持股 ' + Math.round(ex.exposure * 100) + '%' +
+      ' | ' + lastDate;
+    badge.style.color = ex.color;
+    badge.style.borderColor = ex.color;
   }
 
-  // 👉 更新主面板
   var panel = $('drsPanel');
   if (panel) {
     panel.innerHTML =
       '<div style="font-size:12px;line-height:1.8">' +
       '<div>日期：<b style="color:var(--wh)">' + lastDate + '</b></div>' +
-      '<div>總經閥門：<b style="color:' + lv.color + '">' + pt.drs.toFixed(2) + '</b></div>' +
-      '<div>狀態：<b style="color:' + lv.color + '">' + lv.label + '</b></div>' +
-      '<div>減碼：<b style="color:var(--ye)">' + Math.round(lv.reduce * 100) + '%</b></div>' +
+      '<div>總經閥門：<b style="color:' + ex.color + '">' + pt.drs.toFixed(2) + '</b></div>' +
+      '<div>狀態：<b style="color:' + ex.color + '">' + ex.label + '</b></div>' +
+      '<div>持股比例：<b style="color:var(--wh)">' + Math.round(ex.exposure * 100) + '%</b></div>' +
+      '<div>防守比例：<b style="color:var(--ye)">' + Math.round((1 - ex.exposure) * 100) + '%</b></div>' +
       '</div>';
   }
 
-  sl('drsLog', '總經閥門重算完成：' + lastDate + ' (' + lv.label + ')', true);
+  sl(
+    'drsLog',
+    '總經閥門重算完成：' + lastDate + ' (' + ex.label + ', 持股 ' + Math.round(ex.exposure * 100) + '%)',
+    true
+  );
+
   return true;
 }
-  function updateDRSWeights() {
+
+function updateDRSWeights() {
   if (typeof DRS_CFG === 'undefined') return;
 
   DRS_CFG.w_hy   = gv('drsWHY')  / 100;
   DRS_CFG.w_yc   = gv('drsWYC')  / 100;
   DRS_CFG.w_vix  = gv('drsWVIX') / 100;
   DRS_CFG.w_brd  = gv('drsWBRD') / 100;
-  DRS_CFG.smooth = parseInt($('drsSmooth').value, 10) || 21;
-  DRS_CFG.win    = parseInt($('drsWin').value, 10) || 252;
-  DRS_CFG.hold   = parseInt($('drsHold').value, 10) || 30;
+  DRS_CFG.smooth = parseInt($('drsSmooth').value, 10) || 10;
+  DRS_CFG.win    = parseInt($('drsWin').value, 10) || 126;
+  DRS_CFG.hold   = parseInt($('drsHold').value, 10) || 20;
 
   calcDRSCurrent();
 }
@@ -3438,16 +3494,16 @@ function runDRSCompare() {
         Math.abs(kOff.nav - kOn.nav) < 1e-6;
 
       var reducedCount = 0;
-      if (DRS_RESULT && DRS_RESULT.dates) {
-        DRS_RESULT.dates.forEach(function (d) {
-          var pt = DRS_RESULT.map[d];
-          if (pt && drsLevel(pt.drs).reduce > 0) reducedCount++;
-        });
-      }
+if (DRS_RESULT && DRS_RESULT.dates) {
+  DRS_RESULT.dates.forEach(function (d) {
+    var pt = DRS_RESULT.map[d];
+    if (pt && drsExposure(pt.drs).exposure < 0.999999) reducedCount++;
+  });
+}
 
       var html = '<div class="card">'
         + '<div class="ct">總經閥門 BACKTEST COMPARE (ON vs OFF)</div>'
-        + '<div style="font-size:12px;margin-bottom:8px">總經閥門減碼日數：<b>' + reducedCount + '</b></div>'
+        + '<div style="font-size:12px;margin-bottom:8px">總經閥門曝險下降日數：<b>' + reducedCount + '</b></div>'
         + '<div class="tw-wrap"><table><thead><tr>'
         + '<th>Mode</th><th>CAGR</th><th>MDD</th><th>Sharpe</th><th>Final NAV</th>'
         + '</tr></thead><tbody>'
@@ -3460,7 +3516,7 @@ function runDRSCompare() {
       $('stressMetrics').innerHTML += html;
 
       if (reducedCount === 0) {
-        sl('drsLog', '比較完成，但整段期間沒有任何總經閥門減碼觸發，因此 On/Off 可能完全相同', false);
+       sl('drsLog', '比較完成，但整段期間沒有任何總經閥門曝險下降觸發，因此 On/Off 可能完全相同', false);
       } else if (sameResult) {
         sl('drsLog', '比較完成：有總經閥門訊號，但績效仍相同，請檢查 runBTcore 內 target 是否真的被改變', false);
       } else {
@@ -3615,10 +3671,16 @@ window.onload = async function() {
   renderPool();
   initGroupToggles();
   togglePoolUI();
+
   var hasData = await loadFromDB();
   if (!hasData) console.log('No local data found in IndexedDB.');
-  if ((typeof DRS_DATA !== 'undefined' && Object.keys(DRS_DATA).length > 0) || DAILY['^VIX']) calcDRSCurrent();
+
+  // updateDRSWeights() 會同步 UI 參數，並在資料存在時重算 DRS
+  if (typeof updateDRSWeights === 'function') {
+    updateDRSWeights();
+  }
 };
+  
 </script>
 </body>
 </html>
