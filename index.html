@@ -3299,15 +3299,15 @@ function drsExposure(score) {
     return { exposure: 1.00, label: 'GREEN', color: 'var(--gr)' };
   }
 
-  if (score >= 1.30) {
+  if (score >= 0.90) {
     return { exposure: 0.00, label: 'RED', color: 'var(--re)' };
   }
 
-  if (score >= 0.90) {
+  if (score >= 0.60) {
     return { exposure: 0.50, label: 'ORANGE', color: 'var(--ye)' };
   }
 
-  if (score >= 0.50) {
+  if (score >= 0.30) {
     return { exposure: 0.75, label: 'YELLOW', color: 'var(--ac)' };
   }
 
