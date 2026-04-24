@@ -305,6 +305,17 @@ tr:hover{background:var(--sf2)}
       <div class="fi"><label>台股配額</label><input type="number" id="btQuotaTW" value="0" onchange="updTotalH()"></div>
       <div class="fi"><label>美股配額</label><input type="number" id="btQuotaUS" value="0" onchange="updTotalH()"></div>
       <div class="fi"><label>ETF 配額</label><input type="number" id="btQuotaETF" value="0" onchange="updTotalH()"></div>
+     label>區域ETF配額</label>
+  <select id="btRegionQuotaMode">
+    <option value="off" selected>Off</option>
+    <option value="on">On - Split US quota by ETF</option>
+  </select>
+</div>
+
+<div class="fi"><label>Region ETF US</label><input type="text" id="btEtfUS" value="SPY"></div>
+<div class="fi"><label>Region ETF JP</label><input type="text" id="btEtfJP" value="EWJ"></div>
+<div class="fi"><label>Region ETF CN Broad</label><input type="text" id="btEtfCN" value="MCHI"></div>
+<div class="fi"><label>Region ETF CN Tech</label><input type="text" id="btEtfCNTech" value="KWEB"></div>
       <div class="fi"><label>Capital</label><input type="number" id="btCap" value="100000"></div>
       <div class="fi"><label>Cost(%)</label><input type="number" id="btC" value="0.3" step="0.1"></div>
       <div class="fi"><label>TNX Spread(%)</label><input type="number" id="btSpread" value="25" step="0.1"></div>
@@ -477,31 +488,110 @@ var POOL_DEF = [
     {c:'MPWR',n:'Monolithic'},{c:'MCHP',n:'Microchip'},{c:'ON',n:'ON Semi'},
     {c:'SWKS',n:'Skyworks'},{c:'TER',n:'Teradyne'}
   ]},
-  {title:'[CN] China Tech Extended',pool:'us',tw:false,stocks:[
-    {c:'BABA',n:'Alibaba'},{c:'TCEHY',n:'Tencent'},{c:'BIDU',n:'Baidu'},
-    {c:'JD',n:'JD.com'},{c:'PDD',n:'Pinduoduo'},{c:'NTES',n:'NetEase'},
-    {c:'BILI',n:'Bilibili'},{c:'IQ',n:'iQIYI'},{c:'TME',n:'Tencent Music'},
-    {c:'NIO',n:'NIO'},{c:'XPEV',n:'XPeng'},{c:'LI',n:'Li Auto'},
-    {c:'BEKE',n:'KE Holdings'},{c:'YMM',n:'Full Truck Alliance'},
-    {c:'QFIN',n:'Qifu Tech'}
-  ]},
- {title:'[JP] Japan Core + Tech',pool:'us',tw:false,stocks:[
-    {c:'7203.T',n:'Toyota'},{c:'6758.T',n:'Sony'},{c:'8306.T',n:'MUFG'},
-    {c:'8316.T',n:'SMFG'},{c:'9432.T',n:'NTT'},{c:'9433.T',n:'KDDI'},
-    {c:'9983.T',n:'Fast Retailing'},{c:'8058.T',n:'Mitsubishi Corp'},
-    {c:'8031.T',n:'Mitsui & Co'},{c:'8001.T',n:'Itochu'},
-    {c:'7267.T',n:'Honda'},{c:'6501.T',n:'Hitachi'},
-    {c:'7011.T',n:'Mitsubishi Heavy'},{c:'6367.T',n:'Daikin'},
-    {c:'7751.T',n:'Canon'},{c:'7974.T',n:'Nintendo'},
+  {title:'[CN] China Tech Extended 35',pool:'us',tw:false,stocks:[
+    // HK
+    {c:'0700.HK',n:'Tencent HK'},
+    {c:'9988.HK',n:'Alibaba HK'},
+    {c:'3690.HK',n:'Meituan'},
+    {c:'1810.HK',n:'Xiaomi'},
+    {c:'9618.HK',n:'JD HK'},
+    {c:'9999.HK',n:'NetEase HK'},
+    {c:'9888.HK',n:'Baidu HK'},
+    {c:'1024.HK',n:'Kuaishou'},
+    {c:'9868.HK',n:'XPeng HK'},
+    {c:'2015.HK',n:'Li Auto HK'},
+    {c:'0981.HK',n:'SMIC'},
+    {c:'2382.HK',n:'Sunny Optical'},
+    {c:'6618.HK',n:'JD Health'},
+    {c:'9626.HK',n:'Bilibili HK'},
+    {c:'1347.HK',n:'Hua Hong Semi'},
+    {c:'0285.HK',n:'BYD Electronic'},
+    {c:'2400.HK',n:'XD Inc'},
+    {c:'0772.HK',n:'China Literature'},
+    {c:'6969.HK',n:'Smoore'},
+    {c:'0780.HK',n:'Tongcheng Travel'},
 
-    {c:'8035.T',n:'Tokyo Electron'},{c:'6857.T',n:'Advantest'},
-    {c:'6920.T',n:'Lasertec'},{c:'7735.T',n:'SCREEN'},
-    {c:'6146.T',n:'Disco'},{c:'6861.T',n:'Keyence'},
-    {c:'6723.T',n:'Renesas'},{c:'6702.T',n:'Fujitsu'},
-    {c:'6981.T',n:'Murata'},{c:'6762.T',n:'TDK'},
-    {c:'6954.T',n:'Fanuc'},{c:'6273.T',n:'SMC'},
-    {c:'7741.T',n:'Hoya'},{c:'4063.T',n:'Shin-Etsu'},
-    {c:'9984.T',n:'SoftBank'}
+    // US ADR
+    {c:'BABA',n:'Alibaba ADR'},
+    {c:'JD',n:'JD.com ADR'},
+    {c:'PDD',n:'PDD Holdings'},
+    {c:'BIDU',n:'Baidu ADR'},
+    {c:'NTES',n:'NetEase ADR'},
+    {c:'TME',n:'Tencent Music'},
+    {c:'BILI',n:'Bilibili ADR'},
+    {c:'IQ',n:'iQIYI'},
+    {c:'NIO',n:'NIO'},
+    {c:'XPEV',n:'XPeng ADR'},
+    {c:'LI',n:'Li Auto ADR'},
+    {c:'DADA',n:'Dada Nexus'},
+    {c:'QFIN',n:'Qifu Tech'},
+    {c:'YMM',n:'Full Truck Alliance'},
+    {c:'BEKE',n:'KE Holdings'}
+  ]},
+{title:'[JP] Japan Core + Tech 60',pool:'us',tw:false,stocks:[
+    // JP Core 30
+    {c:'7203.T',n:'Toyota Motor'},
+    {c:'6758.T',n:'Sony Group'},
+    {c:'9432.T',n:'NTT'},
+    {c:'9433.T',n:'KDDI'},
+    {c:'8306.T',n:'MUFG'},
+    {c:'8316.T',n:'SMFG'},
+    {c:'8411.T',n:'Mizuho FG'},
+    {c:'9983.T',n:'Fast Retailing'},
+    {c:'8058.T',n:'Mitsubishi Corp'},
+    {c:'8031.T',n:'Mitsui & Co'},
+    {c:'8001.T',n:'Itochu'},
+    {c:'8002.T',n:'Marubeni'},
+    {c:'8053.T',n:'Sumitomo Corp'},
+    {c:'7267.T',n:'Honda Motor'},
+    {c:'6501.T',n:'Hitachi'},
+    {c:'7011.T',n:'Mitsubishi Heavy'},
+    {c:'6367.T',n:'Daikin'},
+    {c:'7751.T',n:'Canon'},
+    {c:'7974.T',n:'Nintendo'},
+    {c:'8766.T',n:'Tokio Marine'},
+    {c:'8725.T',n:'MS&AD Insurance'},
+    {c:'8630.T',n:'Sompo Holdings'},
+    {c:'8750.T',n:'Dai-ichi Life'},
+    {c:'7182.T',n:'Japan Post Bank'},
+    {c:'6178.T',n:'Japan Post Holdings'},
+    {c:'8802.T',n:'Mitsubishi Estate'},
+    {c:'8801.T',n:'Mitsui Fudosan'},
+    {c:'2914.T',n:'Japan Tobacco'},
+    {c:'3382.T',n:'Seven & i'},
+    {c:'5108.T',n:'Bridgestone'},
+
+    // JP Tech 30
+    {c:'8035.T',n:'Tokyo Electron'},
+    {c:'6857.T',n:'Advantest'},
+    {c:'6920.T',n:'Lasertec'},
+    {c:'7735.T',n:'SCREEN Holdings'},
+    {c:'6146.T',n:'Disco'},
+    {c:'6861.T',n:'Keyence'},
+    {c:'6723.T',n:'Renesas'},
+    {c:'6702.T',n:'Fujitsu'},
+    {c:'6701.T',n:'NEC'},
+    {c:'6098.T',n:'Recruit Holdings'},
+    {c:'6981.T',n:'Murata'},
+    {c:'6762.T',n:'TDK'},
+    {c:'6954.T',n:'Fanuc'},
+    {c:'6902.T',n:'Denso'},
+    {c:'6503.T',n:'Mitsubishi Electric'},
+    {c:'6752.T',n:'Panasonic Holdings'},
+    {c:'5803.T',n:'Fujikura'},
+    {c:'5802.T',n:'Sumitomo Electric'},
+    {c:'7741.T',n:'Hoya'},
+    {c:'6273.T',n:'SMC'},
+    {c:'6645.T',n:'Omron'},
+    {c:'4063.T',n:'Shin-Etsu Chemical'},
+    {c:'6988.T',n:'Nitto Denko'},
+    {c:'6963.T',n:'ROHM'},
+    {c:'6971.T',n:'Kyocera'},
+    {c:'4004.T',n:'Resonac'},
+    {c:'4188.T',n:'Mitsubishi Chemical'},
+    {c:'6703.T',n:'Oki Electric'},
+    {c:'9613.T',n:'NTT Data Group'},
+    {c:'9984.T',n:'SoftBank Group'}
   ]},
 
   {title:'\u5149\u5b78\u7cbe\u5bc6',pool:'tw',tw:true,stocks:[
@@ -632,7 +722,15 @@ function getEnabledStocks() {
     if (tw) { pool = 'tw'; }
     else if (title.indexOf('[ETF]') !== -1) { pool = 'etf'; }
     else if (title.indexOf('[US]') !== -1 || title.indexOf('[CN]') !== -1 || title.indexOf('[JP]') !== -1) { pool = 'us'; }
-    result.push({c: code, n: cn ? cn.textContent : '', type: el.dataset.type, tw: tw, pool: pool});
+    result.push({
+  c: code,
+  n: cn ? cn.textContent : '',
+  type: el.dataset.type,
+  tw: tw,
+  pool: pool,
+  region: getRegionTagFromTitle(title),
+  ind: title
+});
   });
   return result;
 }
@@ -664,7 +762,91 @@ function updAllCounts(){document.querySelectorAll('.ib').forEach(function(ib){up
 function addCustom(){var raw=$('cusT').value.trim().toUpperCase();var isUS=$('cusUS')&&$('cusUS').checked;var code=isUS?raw:raw.replace('.TW','');if(!code)return;if(document.querySelector('[data-code="'+code+'"]'))return;var name=$('cusN').value.trim()||code;var chip=document.createElement('span');chip.className='sc act'+(isUS?' usc':'');chip.setAttribute('onclick',"toggleStock('"+code+"')");chip.dataset.code=code;chip.dataset.type='mid';chip.dataset.tw=isUS?'0':'1';chip.dataset.on='1';chip.innerHTML='<span class="cc">'+code+'</span><span class="cn">'+name+'</span><span class="cd" onclick="event.stopPropagation();deleteStock(\''+code+'\')">x</span>';var ibs=document.querySelectorAll('.ib');if(ibs.length)ibs[0].appendChild(chip);$('cusT').value='';$('cusN').value='';updAllCounts();}
 function getStockName(code){var el=document.querySelector('[data-code="'+code+'"] .cn');return el?el.textContent:code;}
 function getWeightMode(){var r=document.querySelector('input[name="wtMode"]:checked');return r?r.value:'eq';}
+function getRegionTagFromTitle(title) {
+  title = (title || '').toUpperCase();
+  if (title.indexOf('[JP]') !== -1) return 'jp';
+  if (title.indexOf('[CN]') !== -1 || title.indexOf('[HK]') !== -1) return 'cn';
+  if (title.indexOf('[US]') !== -1) return 'us';
+  return 'other';
+}
 
+function calcRetFromCloses(closes, lookback) {
+  if (!closes || closes.length < lookback + 1) return null;
+  var last = closes[closes.length - 1];
+  var prev = closes[closes.length - 1 - lookback];
+  if (last == null || prev == null || prev === 0) return null;
+  return last / prev - 1;
+}
+
+function calcETFRegionRawScore(code) {
+  var bars = DAILY[code];
+  if (!bars || bars.length < 241) return null;
+  var closes = bars.map(function(x){ return x.c; });
+  var r240 = calcRetFromCloses(closes, 240);
+  var r120 = calcRetFromCloses(closes, 120);
+  var r60  = calcRetFromCloses(closes, 60);
+  if (r240 == null || r120 == null || r60 == null) return null;
+  return 0.5 * r240 + 0.3 * r120 + 0.2 * r60;
+}
+
+function softmaxObj(obj) {
+  var keys = Object.keys(obj);
+  var maxV = Math.max.apply(null, keys.map(function(k){ return obj[k]; }));
+  var sum = 0, out = {};
+  keys.forEach(function(k){
+    out[k] = Math.exp(obj[k] - maxV);
+    sum += out[k];
+  });
+  keys.forEach(function(k){ out[k] = sum > 0 ? out[k] / sum : 1 / keys.length; });
+  return out;
+}
+
+function calcRegionQuotaFromETF(totalUSQuota) {
+  var usTicker = ($('btEtfUS') ? $('btEtfUS').value.trim().toUpperCase() : 'SPY') || 'SPY';
+  var jpTicker = ($('btEtfJP') ? $('btEtfJP').value.trim().toUpperCase() : 'EWJ') || 'EWJ';
+  var cnTicker = ($('btEtfCN') ? $('btEtfCN').value.trim().toUpperCase() : 'MCHI') || 'MCHI';
+  var cnTechTicker = ($('btEtfCNTech') ? $('btEtfCNTech').value.trim().toUpperCase() : 'KWEB') || 'KWEB';
+
+  var rawUS = calcETFRegionRawScore(usTicker);
+  var rawJP = calcETFRegionRawScore(jpTicker);
+  var rawCN = calcETFRegionRawScore(cnTicker);
+  var rawCNTech = calcETFRegionRawScore(cnTechTicker);
+
+  if ([rawUS, rawJP, rawCN, rawCNTech].some(function(v){ return v == null || !isFinite(v); })) {
+    var baseUS = Math.round(totalUSQuota / 3);
+    var baseJP = Math.round((totalUSQuota - baseUS) / 2);
+    return {
+      us: baseUS,
+      jp: baseJP,
+      cn: totalUSQuota - baseUS - baseJP,
+      info: 'fallback equal split'
+    };
+  }
+
+  var raw = {
+    us: rawUS,
+    jp: rawJP,
+    cn: 0.5 * rawCN + 0.5 * rawCNTech
+  };
+
+  var w = softmaxObj(raw);
+
+  var qUS = Math.round(totalUSQuota * w.us);
+  var qJP = Math.round(totalUSQuota * w.jp);
+  var qCN = totalUSQuota - qUS - qJP;
+
+  if (qCN < 0) qCN = 0;
+
+  return {
+    us: qUS,
+    jp: qJP,
+    cn: qCN,
+    wUS: w.us,
+    wJP: w.jp,
+    wCN: w.cn,
+    info: 'ETF split'
+  };
+}
 function buildProxies() {
   var p = $('proxyUrl') ? $('proxyUrl').value.trim() : '';
   if (p && !p.includes('url=')) p += p.endsWith('/') ? '?url=' : '/?url=';
@@ -731,6 +913,10 @@ async function fetchAll() {
     $('loadTxt').textContent = '\u540c\u6b65\u5927\u76e4\u57fa\u6e96...(^TNX, ^TWII)';
     DAILY['^TNX'] = await fetchOHLCV({c:'^TNX', tw:false}, '1d', 'max');
     DAILY['^TWII'] = await fetchOHLCV({c:'^TWII', tw:true}, '1d', 'max');
+    DAILY['SPY'] = await fetchOHLCV({c:'SPY', tw:false}, '1d', 'max');
+DAILY['EWJ'] = await fetchOHLCV({c:'EWJ', tw:false}, '1d', 'max');
+DAILY['MCHI'] = await fetchOHLCV({c:'MCHI', tw:false}, '1d', 'max');
+DAILY['KWEB'] = await fetchOHLCV({c:'KWEB', tw:false}, '1d', 'max');
   } catch(e) { console.error("Bench Fetch Error", e); }
   hideL(); $('fetchProg').classList.add('hidden');
   await buildCache(); await saveAllToDB();
@@ -768,7 +954,14 @@ async function fetchUpdate() {
   }
   hideL(); updFetchStat();
   sl('updateLog', '\u66f4\u65b0\u5b8c\u6210\u3002\u65b0\u589e:' + missing.length + ' \u7e8c\u63a5:' + stale.length + ' \u5931\u6557:' + failed.length, failed.length === 0);
-  var benchList = [{c:'^TNX',tw:false},{c:'^TWII',tw:true}];
+  var benchList = [
+  {c:'^TNX',tw:false},
+  {c:'^TWII',tw:true},
+  {c:'SPY',tw:false},
+  {c:'EWJ',tw:false},
+  {c:'MCHI',tw:false},
+  {c:'KWEB',tw:false}
+];
   for (var bi = 0; bi < benchList.length; bi++) {
     var bs = benchList[bi];
     if (!DAILY[bs.c] || !DAILY[bs.c].length) continue;
@@ -1147,11 +1340,34 @@ function runBTcore(mh, mode) {
       }
     } else {
       var qTW=parseInt($('btQuotaTW')?$('btQuotaTW').value:'2')||0;
-      var qUS=parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0;
-      var qETF=parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0;
-      var localPools={'tw':[],'us':[],'etf':[]};
-      mainCands.forEach(function(r){ if(localPools[r.s.pool]) localPools[r.s.pool].push(r); });
-      var quotaMap={'tw':qTW,'us':qUS,'etf':qETF};
+var qUS=parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0;
+var qETF=parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0;
+
+var localPools={'tw':[],'us':[],'etf':[],'jp':[],'cn':[]};
+
+mainCands.forEach(function(r){
+  if (r.s.pool === 'tw') localPools.tw.push(r);
+  else if (r.s.pool === 'etf') localPools.etf.push(r);
+  else if (r.s.pool === 'us') {
+    if (r.s.region === 'jp') localPools.jp.push(r);
+    else if (r.s.region === 'cn') localPools.cn.push(r);
+    else localPools.us.push(r);
+  }
+});
+
+var quotaMap={'tw':qTW,'us':qUS,'etf':qETF,'jp':0,'cn':0};
+
+if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
+  var rq = calcRegionQuotaFromETF(qUS);
+  quotaMap.us = rq.us;
+  quotaMap.jp = rq.jp;
+  quotaMap.cn = rq.cn;
+
+  sl('btLog',
+    'Region ETF quota ON | US=' + rq.us + ' JP=' + rq.jp + ' CN=' + rq.cn,
+    true
+  );
+}
       ['us','tw','etf'].forEach(function(p) {
         localPools[p].sort(function(a,b){ return b.score-a.score; });
         var quota=quotaMap[p], picked=0;
@@ -1732,7 +1948,7 @@ function renderST(all,hurdle,selectedCodes,rejectedMap,scoreM) {
   var zf=function(v){return (v!==null?(v>=0?'+':'')+v.toFixed(2):'-');};
   var pf=function(v){return (v!==null?(v>=0?'+':'')+(v*100).toFixed(1)+'%':'-');};
   var html='';
-  ['tw','us','etf'].forEach(function(pKey){
+  [''tw','us','jp','cn','etf''].forEach(function(pKey){
     var pStocks=all.filter(function(r){return r.s.pool===pKey;}).sort(function(a,b){return b.score-a.score;});
     if(!pStocks.length)return;
     html+='<tr><td colspan="12" style="background:var(--sf2);color:var(--tx);font-weight:700;text-align:center;padding:8px;">'+pKey.toUpperCase()+' \u7af6\u722d\u6392\u884c</td></tr>';
