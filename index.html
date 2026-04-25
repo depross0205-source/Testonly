@@ -305,21 +305,41 @@ tr:hover{background:var(--sf2)}
       <div class="fi"><label>台股配額</label><input type="number" id="btQuotaTW" value="0" onchange="updTotalH()"></div>
       <div class="fi"><label>美股配額</label><input type="number" id="btQuotaUS" value="0" onchange="updTotalH()"></div>
       <div class="fi"><label>ETF 配額</label><input type="number" id="btQuotaETF" value="0" onchange="updTotalH()"></div>
-     <div class="fi">
-  <label>區域ETF配額</label>
-  <select id="btRegionQuotaMode">
-    <option value="off" selected>Off</option>
-    <option value="on">On - Split US quota by ETF</option>
-  </select>
-</div>
-
-<div class="fi"><label>Region ETF US</label><input type="text" id="btEtfUS" value="SPY"></div>
-<div class="fi"><label>Region ETF JP</label><input type="text" id="btEtfJP" value="EWJ"></div>
-<div class="fi"><label>Region ETF CN Broad</label><input type="text" id="btEtfCN" value="MCHI"></div>
-<div class="fi"><label>Region ETF CN Tech</label><input type="text" id="btEtfCNTech" value="KWEB"></div>
       <div class="fi"><label>Capital</label><input type="number" id="btCap" value="100000"></div>
       <div class="fi"><label>Cost(%)</label><input type="number" id="btC" value="0.3" step="0.1"></div>
       <div class="fi"><label>TNX Spread(%)</label><input type="number" id="btSpread" value="25" step="0.1"></div>
+      <div class="fi">
+        <label style="display:flex;align-items:center;gap:8px">
+          VIX Dynamic Hurdle
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:400;cursor:pointer">
+            <input type="checkbox" id="vixHurdleOn" style="width:13px;accent-color:var(--ye)" onclick="toggleVixParams()">
+            <span style="color:var(--ye)">ON</span>
+          </label>
+        </label>
+        <div id="vixHurdleParams" style="display:none;margin-top:8px;display:none">
+          <div style="font-size:9px;color:var(--mu);margin-bottom:6px;line-height:1.6">
+            Hurdle = max(Floor, TNX + k×VIX%) ± delta_adj<br>
+            VIX>35 且下降時自動降低門檾
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+            <div><div style="color:var(--mu);margin-bottom:2px">Floor(%)</div>
+              <input type="number" id="vixFloor" value="8" step="0.5" style="width:100%;font-size:11px"></div>
+            <div><div style="color:var(--mu);margin-bottom:2px">k (VIX倍數)</div>
+              <input type="number" id="vixK" value="0.8" step="0.05" style="width:100%;font-size:11px"></div>
+            <div><div style="color:var(--mu);margin-bottom:2px">方向敲敏度 α</div>
+              <input type="number" id="vixAlpha" value="0.3" step="0.05" style="width:100%;font-size:11px"></div>
+            <div><div style="color:var(--mu);margin-bottom:2px">Delta窗口(days)</div>
+              <input type="number" id="vixDeltaWin" value="20" min="5" max="60" step="5" style="width:100%;font-size:11px"></div>
+            <div><div style="color:var(--mu);margin-bottom:2px">Max Bonus(%)</div>
+              <input type="number" id="vixMaxBonus" value="15" step="1" style="width:100%;font-size:11px"></div>
+            <div><div style="color:var(--mu);margin-bottom:2px">Max Penalty(%)</div>
+              <input type="number" id="vixMaxPenalty" value="20" step="1" style="width:100%;font-size:11px"></div>
+          </div>
+          <div style="font-size:9px;color:var(--mu);margin-top:5px;padding:4px 6px;background:rgba(255,184,48,0.08);border-left:2px solid var(--ye)">
+            VIX>35且delta&lt;-5: 自動觸發恢復模式 (降低門檾)
+          </div>
+        </div>
+      </div>
       <div class="fi"><label>Weight Mode</label>
         <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
@@ -334,15 +354,16 @@ tr:hover{background:var(--sf2)}
         </div>
       </div>
       <div class="fi"><label>Short N</label><input type="number" id="btSN" value="0" min="0" max="10" placeholder="0=off"></div>
-      <div class="fi"><label>Capital Mode</label>
+      <div class="fi"><label>Capital Mode <span style="font-size:9px;color:var(--mu);font-weight:400">常時生效</span></label>
         <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-            <input type="radio" name="capMode" id="capNeutral" value="neutral" checked style="width:14px;accent-color:var(--bl)"> 50/50
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer" title="50%資金投入多頭 | Short N>0時另加50%放空">
+            <input type="radio" name="capMode" id="capNeutral" value="neutral" checked style="width:14px;accent-color:var(--bl)"> 50% 投入
           </label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-            <input type="radio" name="capMode" id="cap1330" value="1330" style="width:14px;accent-color:var(--bl)"> 130/30
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer" title="100%資金全投多頭 | Short N>0時另外借入130%放空30%">
+            <input type="radio" name="capMode" id="cap1330" value="1330" style="width:14px;accent-color:var(--bl)"> 100% / 130/30
           </label>
         </div>
+        <div style="font-size:9px;color:var(--mu);margin-top:3px">50%: 多頭占資金50%，余颐50%現金 | 100%: 全額投入多頭</div>
       </div>
       <div class="fi"><label>Short TS Filter</label>
         <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;cursor:pointer">
@@ -362,10 +383,31 @@ tr:hover{background:var(--sf2)}
           <input type="checkbox" id="btSkipMo" style="width:14px;accent-color:var(--tw)"> 跳過最近1月
         </label>
       </div>
-      <div class="fi"><label>Signal Lag</label>
+      <div class="fi"><label>Signal Lag <span style="font-size:9px;color:var(--mu);font-weight:400">t-(N) 交易日</span></label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <span style="font-size:12px;color:var(--mu)">t-</span>
+          <input type="number" id="btLag" value="1" min="0" max="22" step="1"
+            style="width:54px;font-family:monospace;font-size:13px;font-weight:700;color:var(--tw);text-align:center">
+          <span style="font-size:10px;color:var(--mu)">(0~22 交易日)</span>
+        </div>
+        <div style="font-size:9px;color:var(--mu);margin-top:4px;line-height:1.5">0=月末當天 | 1=前1日 | 22≈跳過1個月</div>
+      </div>
+      <div class="fi"><label>Entry Mode</label>
         <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="lagMode" id="lagT1" value="1" checked style="width:14px;accent-color:var(--tw)"> t-1</label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="lagMode" id="lagT2" value="2" style="width:14px;accent-color:var(--tw)"> t-2</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer"
+            title="月末最後1天一次進場，原始行為">
+            <input type="radio" name="entryMode" id="emEOM" value="eom" checked
+              style="width:14px;accent-color:var(--tw)"> EOM 月末標準
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer"
+            title="訂號日(t-LAG)建倉，持倉期從訂號日起算到月底">
+            <input type="radio" name="entryMode" id="emT10" value="t10"
+              style="width:14px;accent-color:var(--ye)"> T-Lag 分批
+          </label>
+        </div>
+        <div style="font-size:9px;color:var(--mu);margin-top:3px;line-height:1.5">
+          T-Lag: 訂號日就進場，區間改為 scoreM→月底<br>
+          月底再確認排名，掉出 Top 2N 則不續持
         </div>
       </div>
       <div class="fi"><label>回測頻率</label>
@@ -394,7 +436,8 @@ tr:hover{background:var(--sf2)}
       <button class="btw" onclick="runBT()" style="flex:1">執行回測</button>
       <button class="bo" onclick="runCompare()" style="flex:1">比較 N=1~max</button>
     </div>
-    <button class="bte" onclick="runRolling()" style="width:100%;margin-top:6px">滚動報酬分析</button>
+    <button class="bte" onclick="runRolling()" style="width:100%;margin-top:6px">滞動報酬分析</button>
+    <button class="bo sm" onclick="runLagAnalysis()" style="width:100%;margin-top:6px">訊號穩定性分析 (L1→LM)</button>
     <div class="log" id="btLog"></div>
   </div>
   <div id="btRes" class="hidden">
@@ -489,112 +532,16 @@ var POOL_DEF = [
     {c:'MPWR',n:'Monolithic'},{c:'MCHP',n:'Microchip'},{c:'ON',n:'ON Semi'},
     {c:'SWKS',n:'Skyworks'},{c:'TER',n:'Teradyne'}
   ]},
-  {title:'[CN] China Tech Extended 35',pool:'us',tw:false,stocks:[
-    // HK
-    {c:'0700.HK',n:'Tencent HK'},
-    {c:'9988.HK',n:'Alibaba HK'},
-    {c:'3690.HK',n:'Meituan'},
-    {c:'1810.HK',n:'Xiaomi'},
-    {c:'9618.HK',n:'JD HK'},
-    {c:'9999.HK',n:'NetEase HK'},
-    {c:'9888.HK',n:'Baidu HK'},
-    {c:'1024.HK',n:'Kuaishou'},
-    {c:'9868.HK',n:'XPeng HK'},
-    {c:'2015.HK',n:'Li Auto HK'},
-    {c:'0981.HK',n:'SMIC'},
-    {c:'2382.HK',n:'Sunny Optical'},
-    {c:'6618.HK',n:'JD Health'},
-    {c:'9626.HK',n:'Bilibili HK'},
-    {c:'1347.HK',n:'Hua Hong Semi'},
-    {c:'0285.HK',n:'BYD Electronic'},
-    {c:'2400.HK',n:'XD Inc'},
-    {c:'0772.HK',n:'China Literature'},
-    {c:'6969.HK',n:'Smoore'},
-    {c:'0780.HK',n:'Tongcheng Travel'},
-
-    // US ADR
-    {c:'BABA',n:'Alibaba ADR'},
-    {c:'JD',n:'JD.com ADR'},
-    {c:'PDD',n:'PDD Holdings'},
-    {c:'BIDU',n:'Baidu ADR'},
-    {c:'NTES',n:'NetEase ADR'},
-    {c:'TME',n:'Tencent Music'},
-    {c:'BILI',n:'Bilibili ADR'},
-    {c:'IQ',n:'iQIYI'},
-    {c:'NIO',n:'NIO'},
-    {c:'XPEV',n:'XPeng ADR'},
-    {c:'LI',n:'Li Auto ADR'},
-    {c:'DADA',n:'Dada Nexus'},
-    {c:'QFIN',n:'Qifu Tech'},
-    {c:'YMM',n:'Full Truck Alliance'},
-    {c:'BEKE',n:'KE Holdings'}
+  {title:'[CN] CN Tech',pool:'us',tw:false,stocks:[
+    {c:'BABA',n:'Alibaba'},{c:'TCEHY',n:'Tencent'},{c:'BIDU',n:'Baidu'},
+    {c:'JD',n:'JD.com'},{c:'PDD',n:'Pinduoduo'},{c:'NTES',n:'NetEase'}
   ]},
-{title:'[JP] Japan Core + Tech 60',pool:'us',tw:false,stocks:[
-    // JP Core 30
-    {c:'7203.T',n:'Toyota Motor'},
-    {c:'6758.T',n:'Sony Group'},
-    {c:'9432.T',n:'NTT'},
-    {c:'9433.T',n:'KDDI'},
-    {c:'8306.T',n:'MUFG'},
-    {c:'8316.T',n:'SMFG'},
-    {c:'8411.T',n:'Mizuho FG'},
-    {c:'9983.T',n:'Fast Retailing'},
-    {c:'8058.T',n:'Mitsubishi Corp'},
-    {c:'8031.T',n:'Mitsui & Co'},
-    {c:'8001.T',n:'Itochu'},
-    {c:'8002.T',n:'Marubeni'},
-    {c:'8053.T',n:'Sumitomo Corp'},
-    {c:'7267.T',n:'Honda Motor'},
-    {c:'6501.T',n:'Hitachi'},
-    {c:'7011.T',n:'Mitsubishi Heavy'},
-    {c:'6367.T',n:'Daikin'},
-    {c:'7751.T',n:'Canon'},
-    {c:'7974.T',n:'Nintendo'},
-    {c:'8766.T',n:'Tokio Marine'},
-    {c:'8725.T',n:'MS&AD Insurance'},
-    {c:'8630.T',n:'Sompo Holdings'},
-    {c:'8750.T',n:'Dai-ichi Life'},
-    {c:'7182.T',n:'Japan Post Bank'},
-    {c:'6178.T',n:'Japan Post Holdings'},
-    {c:'8802.T',n:'Mitsubishi Estate'},
-    {c:'8801.T',n:'Mitsui Fudosan'},
-    {c:'2914.T',n:'Japan Tobacco'},
-    {c:'3382.T',n:'Seven & i'},
-    {c:'5108.T',n:'Bridgestone'},
-
-    // JP Tech 30
-    {c:'8035.T',n:'Tokyo Electron'},
-    {c:'6857.T',n:'Advantest'},
-    {c:'6920.T',n:'Lasertec'},
-    {c:'7735.T',n:'SCREEN Holdings'},
-    {c:'6146.T',n:'Disco'},
-    {c:'6861.T',n:'Keyence'},
-    {c:'6723.T',n:'Renesas'},
-    {c:'6702.T',n:'Fujitsu'},
-    {c:'6701.T',n:'NEC'},
-    {c:'6098.T',n:'Recruit Holdings'},
-    {c:'6981.T',n:'Murata'},
-    {c:'6762.T',n:'TDK'},
-    {c:'6954.T',n:'Fanuc'},
-    {c:'6902.T',n:'Denso'},
-    {c:'6503.T',n:'Mitsubishi Electric'},
-    {c:'6752.T',n:'Panasonic Holdings'},
-    {c:'5803.T',n:'Fujikura'},
-    {c:'5802.T',n:'Sumitomo Electric'},
-    {c:'7741.T',n:'Hoya'},
-    {c:'6273.T',n:'SMC'},
-    {c:'6645.T',n:'Omron'},
-    {c:'4063.T',n:'Shin-Etsu Chemical'},
-    {c:'6988.T',n:'Nitto Denko'},
-    {c:'6963.T',n:'ROHM'},
-    {c:'6971.T',n:'Kyocera'},
-    {c:'4004.T',n:'Resonac'},
-    {c:'4188.T',n:'Mitsubishi Chemical'},
-    {c:'6703.T',n:'Oki Electric'},
-    {c:'9613.T',n:'NTT Data Group'},
-    {c:'9984.T',n:'SoftBank Group'}
+  {title:'[JP] Japan Top10',pool:'us',tw:false,stocks:[
+    {c:'7203.T',n:'Toyota'},{c:'6758.T',n:'Sony'},{c:'9984.T',n:'SoftBank'},
+    {c:'8306.T',n:'MUFG'},{c:'6501.T',n:'Hitachi'},{c:'7267.T',n:'Honda'},
+    {c:'6861.T',n:'Keyence'},{c:'8316.T',n:'SMFG'},{c:'9983.T',n:'Fast Retailing'},
+    {c:'9433.T',n:'KDDI'}
   ]},
-
   {title:'\u5149\u5b78\u7cbe\u5bc6',pool:'tw',tw:true,stocks:[
     {c:'3008',n:'\u5927\u7acb\u5149'},{c:'3406',n:'\u7389\u6676\u5149'}
   ]},
@@ -723,15 +670,7 @@ function getEnabledStocks() {
     if (tw) { pool = 'tw'; }
     else if (title.indexOf('[ETF]') !== -1) { pool = 'etf'; }
     else if (title.indexOf('[US]') !== -1 || title.indexOf('[CN]') !== -1 || title.indexOf('[JP]') !== -1) { pool = 'us'; }
-    result.push({
-  c: code,
-  n: cn ? cn.textContent : '',
-  type: el.dataset.type,
-  tw: tw,
-  pool: pool,
-  region: getRegionTagFromTitle(title),
-  ind: title
-});
+    result.push({c: code, n: cn ? cn.textContent : '', type: el.dataset.type, tw: tw, pool: pool});
   });
   return result;
 }
@@ -763,91 +702,7 @@ function updAllCounts(){document.querySelectorAll('.ib').forEach(function(ib){up
 function addCustom(){var raw=$('cusT').value.trim().toUpperCase();var isUS=$('cusUS')&&$('cusUS').checked;var code=isUS?raw:raw.replace('.TW','');if(!code)return;if(document.querySelector('[data-code="'+code+'"]'))return;var name=$('cusN').value.trim()||code;var chip=document.createElement('span');chip.className='sc act'+(isUS?' usc':'');chip.setAttribute('onclick',"toggleStock('"+code+"')");chip.dataset.code=code;chip.dataset.type='mid';chip.dataset.tw=isUS?'0':'1';chip.dataset.on='1';chip.innerHTML='<span class="cc">'+code+'</span><span class="cn">'+name+'</span><span class="cd" onclick="event.stopPropagation();deleteStock(\''+code+'\')">x</span>';var ibs=document.querySelectorAll('.ib');if(ibs.length)ibs[0].appendChild(chip);$('cusT').value='';$('cusN').value='';updAllCounts();}
 function getStockName(code){var el=document.querySelector('[data-code="'+code+'"] .cn');return el?el.textContent:code;}
 function getWeightMode(){var r=document.querySelector('input[name="wtMode"]:checked');return r?r.value:'eq';}
-function getRegionTagFromTitle(title) {
-  title = (title || '').toUpperCase();
-  if (title.indexOf('[JP]') !== -1) return 'jp';
-  if (title.indexOf('[CN]') !== -1 || title.indexOf('[HK]') !== -1) return 'cn';
-  if (title.indexOf('[US]') !== -1) return 'us';
-  return 'other';
-}
 
-function calcRetFromCloses(closes, lookback) {
-  if (!closes || closes.length < lookback + 1) return null;
-  var last = closes[closes.length - 1];
-  var prev = closes[closes.length - 1 - lookback];
-  if (last == null || prev == null || prev === 0) return null;
-  return last / prev - 1;
-}
-
-function calcETFRegionRawScore(code) {
-  var bars = DAILY[code];
-  if (!bars || bars.length < 241) return null;
-  var closes = bars.map(function(x){ return x.c; });
-  var r240 = calcRetFromCloses(closes, 240);
-  var r120 = calcRetFromCloses(closes, 120);
-  var r60  = calcRetFromCloses(closes, 60);
-  if (r240 == null || r120 == null || r60 == null) return null;
-  return 0.5 * r240 + 0.3 * r120 + 0.2 * r60;
-}
-
-function softmaxObj(obj) {
-  var keys = Object.keys(obj);
-  var maxV = Math.max.apply(null, keys.map(function(k){ return obj[k]; }));
-  var sum = 0, out = {};
-  keys.forEach(function(k){
-    out[k] = Math.exp(obj[k] - maxV);
-    sum += out[k];
-  });
-  keys.forEach(function(k){ out[k] = sum > 0 ? out[k] / sum : 1 / keys.length; });
-  return out;
-}
-
-function calcRegionQuotaFromETF(totalUSQuota) {
-  var usTicker = ($('btEtfUS') ? $('btEtfUS').value.trim().toUpperCase() : 'SPY') || 'SPY';
-  var jpTicker = ($('btEtfJP') ? $('btEtfJP').value.trim().toUpperCase() : 'EWJ') || 'EWJ';
-  var cnTicker = ($('btEtfCN') ? $('btEtfCN').value.trim().toUpperCase() : 'MCHI') || 'MCHI';
-  var cnTechTicker = ($('btEtfCNTech') ? $('btEtfCNTech').value.trim().toUpperCase() : 'KWEB') || 'KWEB';
-
-  var rawUS = calcETFRegionRawScore(usTicker);
-  var rawJP = calcETFRegionRawScore(jpTicker);
-  var rawCN = calcETFRegionRawScore(cnTicker);
-  var rawCNTech = calcETFRegionRawScore(cnTechTicker);
-
-  if ([rawUS, rawJP, rawCN, rawCNTech].some(function(v){ return v == null || !isFinite(v); })) {
-    var baseUS = Math.round(totalUSQuota / 3);
-    var baseJP = Math.round((totalUSQuota - baseUS) / 2);
-    return {
-      us: baseUS,
-      jp: baseJP,
-      cn: totalUSQuota - baseUS - baseJP,
-      info: 'fallback equal split'
-    };
-  }
-
-  var raw = {
-    us: rawUS,
-    jp: rawJP,
-    cn: 0.5 * rawCN + 0.5 * rawCNTech
-  };
-
-  var w = softmaxObj(raw);
-
-  var qUS = Math.round(totalUSQuota * w.us);
-  var qJP = Math.round(totalUSQuota * w.jp);
-  var qCN = totalUSQuota - qUS - qJP;
-
-  if (qCN < 0) qCN = 0;
-
-  return {
-    us: qUS,
-    jp: qJP,
-    cn: qCN,
-    wUS: w.us,
-    wJP: w.jp,
-    wCN: w.cn,
-    info: 'ETF split'
-  };
-}
 function buildProxies() {
   var p = $('proxyUrl') ? $('proxyUrl').value.trim() : '';
   if (p && !p.includes('url=')) p += p.endsWith('/') ? '?url=' : '/?url=';
@@ -914,10 +769,7 @@ async function fetchAll() {
     $('loadTxt').textContent = '\u540c\u6b65\u5927\u76e4\u57fa\u6e96...(^TNX, ^TWII)';
     DAILY['^TNX'] = await fetchOHLCV({c:'^TNX', tw:false}, '1d', 'max');
     DAILY['^TWII'] = await fetchOHLCV({c:'^TWII', tw:true}, '1d', 'max');
-    DAILY['SPY'] = await fetchOHLCV({c:'SPY', tw:false}, '1d', 'max');
-DAILY['EWJ'] = await fetchOHLCV({c:'EWJ', tw:false}, '1d', 'max');
-DAILY['MCHI'] = await fetchOHLCV({c:'MCHI', tw:false}, '1d', 'max');
-DAILY['KWEB'] = await fetchOHLCV({c:'KWEB', tw:false}, '1d', 'max');
+    DAILY['^VIX'] = await fetchOHLCV({c:'^VIX', tw:false}, '1d', 'max');
   } catch(e) { console.error("Bench Fetch Error", e); }
   hideL(); $('fetchProg').classList.add('hidden');
   await buildCache(); await saveAllToDB();
@@ -955,14 +807,7 @@ async function fetchUpdate() {
   }
   hideL(); updFetchStat();
   sl('updateLog', '\u66f4\u65b0\u5b8c\u6210\u3002\u65b0\u589e:' + missing.length + ' \u7e8c\u63a5:' + stale.length + ' \u5931\u6557:' + failed.length, failed.length === 0);
-  var benchList = [
-  {c:'^TNX',tw:false},
-  {c:'^TWII',tw:true},
-  {c:'SPY',tw:false},
-  {c:'EWJ',tw:false},
-  {c:'MCHI',tw:false},
-  {c:'KWEB',tw:false}
-];
+  var benchList = [{c:'^TNX',tw:false},{c:'^TWII',tw:true},{c:'^VIX',tw:false}];
   for (var bi = 0; bi < benchList.length; bi++) {
     var bs = benchList[bi];
     if (!DAILY[bs.c] || !DAILY[bs.c].length) continue;
@@ -979,6 +824,11 @@ async function fetchUpdate() {
   await buildCache(); await saveAllToDB();
 }
 
+function toggleVixParams(){
+  var panel=$('vixHurdleParams');
+  if(!panel) return;
+  panel.style.display=($('vixHurdleOn')&&$('vixHurdleOn').checked)?'block':'none';
+}
 function updTNX(){
   var bars = DAILY['^TNX'];
   if(!bars || !bars.length) return;
@@ -1130,9 +980,22 @@ async function buildCache() {
   var globalRebalDates = getPreciseRebalanceDates(refDaily, freq);
   var neededDates = [];
   globalRebalDates.forEach(function(d) {
-    neededDates.push(d);
-    neededDates.push(getPrevWorkDay(refDaily, d, 1));
-    neededDates.push(getPrevWorkDay(refDaily, d, 2));
+    // Find the bar index of this rebal date in refDaily
+    var baseIdx = -1;
+    for (var bi = refDaily.length - 1; bi >= 0; bi--) {
+      if (refDaily[bi].date <= d) { baseIdx = bi; break; }
+    }
+    if (baseIdx < 0) return;
+    // Step back k=0..30 by bar index (guarantees unique dates, no collision)
+    for (var k = 0; k <= 30; k++) {
+      var ki = baseIdx - k;
+      if (ki < 0) break;
+      var dk = refDaily[ki].date;
+      neededDates.push(dk);
+      // skip-month: another 22 bars back from dk
+      var ski = ki - 22;
+      if (ski >= 0) neededDates.push(refDaily[ski].date);
+    }
   });
   var seen2 = {}; var cacheDates = [];
   neededDates.forEach(function(d){ if(!seen2[d]){ seen2[d]=1; cacheDates.push(d); } });
@@ -1179,7 +1042,39 @@ function getTNXRate(dateStr) {
   return rate ? (rate / 100) : 0.04;
 }
 
-function getHurdle(dateStr){ return Math.max(0, getTNXRate(dateStr) + (gv('btSpread')||0.5)/100); }
+function getVIX(dateStr){
+  var v=getPriceOnDate(DAILY['^VIX'],dateStr);
+  return (v&&v>0)?v:20;
+}
+function getVIXDelta(dateStr,win){
+  win=win||20;
+  if(!DAILY['^VIX']||!DAILY['^VIX'].length) return 0;
+  var bars=DAILY['^VIX'];
+  var idx=-1;
+  for(var i=bars.length-1;i>=0;i--){ if(bars[i].date<=dateStr){idx=i;break;} }
+  if(idx<win) return 0;
+  return bars[idx].c - bars[idx-win].c;
+}
+function getHurdle(dateStr){
+  var tnx=getTNXRate(dateStr);
+  var staticHurdle=Math.max(0, tnx+(gv('btSpread')||0.5)/100);
+  var dynOn=$('vixHurdleOn')&&$('vixHurdleOn').checked;
+  if(!dynOn) return staticHurdle;
+  var vix=getVIX(dateStr);
+  var floor=(gv('vixFloor')||8)/100;
+  var k=(gv('vixK')||0.8);
+  var alpha=(gv('vixAlpha')||0.3);
+  var win=parseInt(($('vixDeltaWin')&&$('vixDeltaWin').value)||'20')||20;
+  var maxBonus=(gv('vixMaxBonus')||15)/100;
+  var maxPenalty=(gv('vixMaxPenalty')||20)/100;
+  var delta=getVIXDelta(dateStr,win);
+  var base=Math.max(floor, tnx+k*(vix/100));
+  var adj=delta*alpha/100;
+  adj=Math.max(-maxBonus, Math.min(maxPenalty, adj));
+  // recovery mode: VIX>35 and falling => extra bonus
+  if(vix>35&&delta<-5){ adj=Math.min(adj,-maxBonus*0.7); }
+  return Math.max(0, base+adj);
+}
 
 // FIX2: calcMA -> calcSimpleMA
 function isStrictTechnicalPass(code, dateStr) {
@@ -1264,8 +1159,8 @@ function runBTcore(mh, mode) {
   var allM = getPreciseRebalanceDates(refDaily, freq);
   var rawS = $('btS') ? ($('btS').value||'').trim().slice(0,10) : '';
   var rawE = $('btE') ? ($('btE').value||'').trim().slice(0,10) : '';
-  var lagEl = document.querySelector('input[name="lagMode"]:checked');
-  var LAG = lagEl ? parseInt(lagEl.value) : 1;
+  var LAG = parseInt($("btLag") ? $("btLag").value : "1") || 0;
+  if (LAG < 0) LAG = 0; if (LAG > 22) LAG = 22;
   var MIN=1, cS=MIN;
   if (rawS) { for(var i=cS; i<allM.length; i++){ if(allM[i]>=rawS){ cS=i; break; } } }
   var cE=allM.length-1;
@@ -1273,6 +1168,8 @@ function runBTcore(mh, mode) {
   if (cS>cE) return null;
 
   var INIT=gv('btCap')||100000, COST=(gv('btC')||0.3)/100, ct=gv('corrT')||0.75;
+  var entryModeEl=document.querySelector('input[name="entryMode"]:checked');
+  var ENTRY_MODE=entryModeEl?entryModeEl.value:'eom';
   var shortN=parseInt($('btSN')?$('btSN').value:'0')||0;
   var capMode=document.querySelector('input[name="capMode"]:checked')?document.querySelector('input[name="capMode"]:checked').value:'neutral';
   var wtModeEl=document.querySelector('input[name="wtMode"]:checked');
@@ -1290,7 +1187,7 @@ function runBTcore(mh, mode) {
   for (var idx=cS; idx<=cE; idx++) {
     var sigM=allM[idx];
     var prevM=allM[idx-1];
-    var scoreM=(LAG===1)?getPrevWorkDay(refDaily,prevM,1):(LAG===2?getPrevWorkDay(refDaily,prevM,2):prevM);
+    var scoreM=(LAG===0)?prevM:getPrevWorkDay(refDaily,prevM,LAG);
     var hurdle=getHurdle(scoreM);
     var skipMoOn=!!($('btSkipMo')&&$('btSkipMo').checked);
     var scoringM=skipMoOn?getPrevWorkDay(refDaily,scoreM,22):scoreM;
@@ -1301,7 +1198,7 @@ function runBTcore(mh, mode) {
     if (valid.length < 5) {
       var b0x=getPriceOnDate(refDaily,prevM), b1x=getPriceOnDate(refDaily,sigM);
       if(b0x&&b1x&&b0x>0) bNav*=(1+(b1x/b0x-1));
-      records.push({month:sigM,period:prevM+" ~ "+sigM,nav:nav,bNav:bNav,holdings:{CASH:1.0},pRet:0,hurdle:hurdle,stockRets:{}});
+    records.push({month:sigM,period:prevM+" ~ "+sigM,nav:nav,bNav:bNav,holdings:{CASH:1.0},pRet:0,hurdle:hurdle,stockRets:{},scoringM:scoringM});
       holdings={CASH:1.0}; continue;
     }
 
@@ -1341,77 +1238,11 @@ function runBTcore(mh, mode) {
       }
     } else {
       var qTW=parseInt($('btQuotaTW')?$('btQuotaTW').value:'2')||0;
-var qUS=parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0;
-var qETF=parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0;
-
-var localPools={'tw':[],'us':[],'etf':[],'jp':[],'cn':[]};
-
-mainCands.forEach(function(r){
-  if (r.s.pool === 'tw') localPools.tw.push(r);
-  else if (r.s.pool === 'etf') localPools.etf.push(r);
-  else if (r.s.pool === 'us') {
-    if (r.s.region === 'jp') localPools.jp.push(r);
-    else if (r.s.region === 'cn') localPools.cn.push(r);
-    else localPools.us.push(r);
-  }
-});
-
-var quotaMap={'tw':qTW,'us':qUS,'etf':qETF,'jp':0,'cn':0};
-
-if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
-  var rq = calcRegionQuotaFromETF(qUS);
-  quotaMap.us = rq.us;
-  quotaMap.jp = rq.jp;
-  quotaMap.cn = rq.cn;
-
-  // 若某個區域股池被你手動全關，或整段拿掉，配額不要浪費，回補給仍有候選的區域
-  var regionKeys = ['us','jp','cn'];
-  var lostQuota = 0;
-
-  regionKeys.forEach(function(k){
-    if (!localPools[k] || localPools[k].length === 0) {
-      lostQuota += quotaMap[k] || 0;
-      quotaMap[k] = 0;
-    }
-  });
-
-  if (lostQuota > 0) {
-    var alive = regionKeys.filter(function(k){
-      return localPools[k] && localPools[k].length > 0;
-    });
-
-    if (alive.length > 0) {
-      // 優先回補給原本 US，其次平均分給剩餘區域
-      if (alive.indexOf('us') !== -1) {
-        quotaMap.us += lostQuota;
-      } else {
-        for (var lq=0; lq<lostQuota; lq++) {
-          quotaMap[alive[lq % alive.length]] += 1;
-        }
-      }
-    }
-  }
-
-  sl('btLog',
-    'Region ETF quota ON | US=' + quotaMap.us +
-    ' JP=' + quotaMap.jp +
-    ' CN=' + quotaMap.cn,
-    true
-  );
-}
-
-['tw','us','jp','cn','etf'].forEach(function(p) {
-  localPools[p].sort(function(a,b){ return b.score-a.score; });
-  var quota=quotaMap[p], picked=0;
-  for (var j=0; j<localPools[p].length; j++) {
-    if (picked>=quota) break;
-    var cand=localPools[p][j];
-    if (sel.every(function(x){ return Math.abs(calcCorr(cand.s.c,x.s.c,scoreM))<ct; })) {
-      sel.push(cand);
-      picked++;
-    }
-  }
-});
+      var qUS=parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0;
+      var qETF=parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0;
+      var localPools={'tw':[],'us':[],'etf':[]};
+      mainCands.forEach(function(r){ if(localPools[r.s.pool]) localPools[r.s.pool].push(r); });
+      var quotaMap={'tw':qTW,'us':qUS,'etf':qETF};
       ['us','tw','etf'].forEach(function(p) {
         localPools[p].sort(function(a,b){ return b.score-a.score; });
         var quota=quotaMap[p], picked=0;
@@ -1423,15 +1254,7 @@ if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
       });
     }
 
-        var totalQuota = poolModeSetting==='large'
-  ? (parseInt(document.getElementById('btH').value)||5)
-  : (quotaMap ? (
-      (quotaMap.tw||0) + (quotaMap.us||0) + (quotaMap.jp||0) + (quotaMap.cn||0) + (quotaMap.etf||0)
-    ) : (
-      (parseInt($('btQuotaTW')?$('btQuotaTW').value:'2')||0)
-      + (parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0)
-      + (parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0)
-    ));
+        var totalQuota = poolModeSetting==='large' ? (parseInt(document.getElementById('btH').value)||5) : (parseInt($('btQuotaTW')?$('btQuotaTW').value:'2')||0)+(parseInt($('btQuotaUS')?$('btQuotaUS').value:'2')||0)+(parseInt($('btQuotaETF')?$('btQuotaETF').value:'1')||0);
     var slots = totalQuota - sel.length;
     if (slots > 0) {
       var hasSGOV = DAILY['SGOV'] && DAILY['SGOV'].length > 0 && getPriceOnDate(DAILY['SGOV'], scoreM) !== null;
@@ -1466,7 +1289,7 @@ if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
       target['CASH']=1.0;
     } else {
       var is1330=capMode==='1330';
-      var lScale=1.0, sScale=0.0;
+      var lScale=is1330?1.0:0.5, sScale=0.0;
       if (shortN>0&&selS&&selS.length>0) { lScale=is1330?1.3:0.5; sScale=is1330?0.3:0.5; }
       if (wtMode==='rank') {
         var ldenom=sel.length*(sel.length+1)/2;
@@ -1525,12 +1348,32 @@ if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
       cashRet=(cr*CASH_FACTOR)/cashDivisor;
     }
 
+    // T-Lag entry mode: entry price is scoreM (signal day), not prevM
+    // Also re-confirm at EOM: if ticker dropped out of Top 2*maxH, treat as cash
+    var eomConfirmCodes={};
+    if (ENTRY_MODE==='t10') {
+      var maxH2=parseInt($('btH')?$('btH').value:'5')||5;
+      var eomScoreM=(LAG===0)?prevM:getPrevWorkDay(refDaily,prevM,1); // use t-1 for EOM confirm
+      var eomSc=calcAllScores(eomScoreM);
+      eomSc.sort(function(a,b){return b.score-a.score;});
+      eomSc.slice(0,maxH2*2).forEach(function(r){eomConfirmCodes[r.s.c]=true;});
+    }
     var stockRets={};
     Object.keys(target).forEach(function(c){
       if (c==='CASH') { stockRets[c]={ret:cashRet,w:target[c]}; }
       else {
-        var p0=getPriceOnDate(DAILY[c],prevM), p1=getPriceOnDate(DAILY[c],sigM);
-        stockRets[c]={ret:(p0&&p1&&p0>0)?(p1/p0-1):null, w:target[c]};
+        // T-Lag: signal on scoringM (t-LAG), enter at NEXT day close (t-(LAG-1))
+        // avoids same-day look-ahead: you see t-LAG close, then buy at t-(LAG-1) open/close
+        var tLagEntryDate=(LAG>0)?getPrevWorkDay(refDaily,prevM,LAG-1):prevM;
+        var entryDate=(ENTRY_MODE==='t10')?tLagEntryDate:prevM;
+        var p0=getPriceOnDate(DAILY[c],entryDate), p1=getPriceOnDate(DAILY[c],sigM);
+        var ret=(p0&&p1&&p0>0)?(p1/p0-1):null;
+        // T-Lag: if ticker failed EOM re-confirmation, book as 0 (exit at prevM price)
+        if (ENTRY_MODE==='t10'&&!eomConfirmCodes[c]) {
+          var pEOM=getPriceOnDate(DAILY[c],prevM);
+          ret=(p0&&pEOM&&p0>0)?(pEOM/p0-1):ret; // exit at EOM, not sigM
+        }
+        stockRets[c]={ret:ret, w:target[c], entry:entryDate};
       }
     });
 
@@ -1560,7 +1403,7 @@ if ($('btRegionQuotaMode') && $('btRegionQuotaMode').value === 'on') {
 
     var hCopy={};
     Object.keys(target).forEach(function(k){ hCopy[k]=target[k]; });
-    records.push({month:sigM,period:prevM+" ~ "+sigM,nav:nav,bNav:bNav,holdings:hCopy,pRet:netRet,hurdle:hurdle,stockRets:stockRets});
+    records.push({month:sigM,period:prevM+" ~ "+sigM,nav:nav,bNav:bNav,holdings:hCopy,pRet:netRet,hurdle:hurdle,stockRets:stockRets,scoringM:scoringM});
     holdings=drifted;
   }
   return records.length>=6 ? records : null;
@@ -1578,6 +1421,271 @@ function kpi(records, init) {
   var variance=rets.reduce(function(a,b){return a+Math.pow(b-avg,2);},0)/(rets.length>1?rets.length-1:1);
   var std=Math.sqrt(variance)*Math.sqrt(12)||1;
   return {cagr:cagr,mdd:mdd,sharpe:(cagr-0.015)/std,nav:last.nav};
+}
+
+function runBTcoreWithLag(forceLag, skipMonth) {
+  // Run backtest with a specific lag override, ignoring UI radio
+  if (!CACHE_BUILT) return null;
+  var stocks = getEnabledStocks().filter(function(s){ return DAILY[s.c]; });
+  if (stocks.length < 3) return null;
+  var masterTicker = DAILY['^TWII'] ? '^TWII' : (DAILY['0050'] ? '0050' : (DAILY['SPY'] ? 'SPY' : stocks[0].c));
+  var refDaily = DAILY[masterTicker]; if (!refDaily) return null;
+  var freq = $('btFreq') ? $('btFreq').value : "1";
+  var allM = getPreciseRebalanceDates(refDaily, freq);
+  var rawS = $('btS') ? ($('btS').value||'').trim().slice(0,10) : '';
+  var rawE = $('btE') ? ($('btE').value||'').trim().slice(0,10) : '';
+  var MIN=1, cS=MIN;
+  if (rawS) { for(var i=cS; i<allM.length; i++){ if(allM[i]>=rawS){ cS=i; break; } } }
+  var cE=allM.length-1;
+  if (rawE) { for(var i2=cE; i2>=cS; i2--){ if(allM[i2]<=rawE){ cE=i2; break; } } }
+  if (cS>cE) return null;
+
+  var INIT=gv('btCap')||100000, COST=(gv('btC')||0.3)/100, ct=gv('corrT')||0.75;
+  var shortN=parseInt($('btSN')?$('btSN').value:'0')||0;
+  var capMode=document.querySelector('input[name="capMode"]:checked')?document.querySelector('input[name="capMode"]:checked').value:'neutral';
+  var wtModeEl=document.querySelector('input[name="wtMode"]:checked');
+  var wtMode=wtModeEl?wtModeEl.value:'eq';
+  var shortTSF=!!($('btSTSF')&&$('btSTSF').checked);
+  var regimeOn=$('btRegime')&&$('btRegime').value==='on';
+  var regimeExp=gv('btRegimeExp')||100;
+  var useMA60=$('ma60Filter')?$('ma60Filter').value==='on':true;
+
+  var nav=INIT, bNav=INIT, records=[], holdings={CASH:1.0};
+  var DEFENSIVE=['SGOV'];
+
+  for (var idx=cS; idx<=cE; idx++) {
+    var sigM=allM[idx];
+    var prevM=allM[idx-1];
+    // forceLag: number = workdays back from prevM; 'LM' = allM[idx-2]
+    var scoreM;
+    if (forceLag === 'LM') {
+      scoreM = idx >= 2 ? allM[idx-2] : allM[0];
+    } else {
+      scoreM = forceLag === 0 ? prevM : getPrevWorkDay(refDaily, prevM, forceLag);
+    }
+    // skipMonth stacks on top of scoreM
+    var finalScoreM = skipMonth ? getPrevWorkDay(refDaily, scoreM, 22) : scoreM;
+    var hurdle=getHurdle(finalScoreM);
+    var sc2=calcAllScores(finalScoreM);
+    var valid=sc2.filter(function(r){ return r.score!==null; });
+    valid.sort(function(a,b){ return b.score-a.score; });
+    if (idx===cS) {
+      records.push({month:sigM,nav:nav,bNav:bNav,pRet:0,holdings:{CASH:1.0},scoringM:finalScoreM});
+      var b0x=getPriceOnDate(refDaily,prevM), b1x=getPriceOnDate(refDaily,sigM);
+      if(b0x&&b1x) bNav*=(b1x/b0x);
+      continue;
+    }
+
+    var totalQuota=parseInt($('btN')?$('btN').value:'5')||5;
+    var sel=[], rejectedMap={};
+    for (var k=0; k<valid.length&&sel.length<totalQuota; k++) {
+      var cand=valid[k];
+      if (!cand||!cand.s||!DAILY[cand.s.c]) continue;
+      if (useMA60&&!isTechnicalPass(cand.s.c,finalScoreM)) { rejectedMap[cand.s.c]='\u6280\u8853'; continue; }
+      if (sel.every(function(x){ return Math.abs(calcCorr(cand.s.c,x.s.c,finalScoreM))<ct; })) sel.push(cand);
+      else rejectedMap[cand.s.c]='\u76f8\u95dc\u6027';
+    }
+    // fill with SGOV/CASH if short
+    var hasSGOV=DAILY['SGOV']&&getPriceOnDate(DAILY['SGOV'],finalScoreM)!==null;
+    if (sel.length<totalQuota) {
+      var fill=hasSGOV?{s:{c:'SGOV',tw:false},score:0}:{s:{c:'CASH',tw:false},score:0};
+      for(var ks=sel.length;ks<totalQuota;ks++) sel.push(fill);
+    }
+    var selS=[];
+    if (shortN>0) {
+      var sCands=valid.slice().reverse().filter(function(r){ return r.score!==null&&!rejectedMap[r.s.c]&&!sel.find(function(x){return x.s.c===r.s.c;}); });
+      if (shortTSF) sCands=sCands.filter(function(r){ return r.r240!==null&&r.r240<0; });
+      for(var ks2=0;ks2<sCands.length&&selS.length<shortN;ks2++){
+        if(selS.every(function(x){return Math.abs(calcCorr(sCands[ks2].s.c,x.s.c,finalScoreM))<ct;})) selS.push(sCands[ks2]);
+      }
+    }
+    var exposure=1.0;
+    if (regimeOn&&isBearishRegime(refDaily,finalScoreM,60)) exposure=regimeExp/100;
+
+    var target={};
+    if (!sel.length) {
+      target['CASH']=1.0;
+    } else {
+      var is1330=capMode==='1330';
+      var lScale=is1330?1.0:0.5, sScale=0.0;
+      if (shortN>0&&selS&&selS.length>0) { lScale=is1330?1.3:0.5; sScale=is1330?0.3:0.5; }
+      var lw=(lScale/sel.length)*exposure;
+      sel.forEach(function(r){ target[r.s.c]=lw; });
+      if (shortN>0&&selS&&selS.length>0) {
+        var sdenom=selS.length;
+        selS.forEach(function(r){ target[r.s.c]=-sScale*(1/sdenom)*exposure; });
+      }
+    }
+
+    var stockRets={}, netRet=0;
+    if (DAILY['SGOV']&&getPriceOnDate(DAILY['SGOV'],prevM)&&getPriceOnDate(DAILY['SGOV'],sigM)) {
+      var s0=getPriceOnDate(DAILY['SGOV'],prevM), s1=getPriceOnDate(DAILY['SGOV'],sigM);
+      if(s0&&s1) { var sgovRet=(s1-s0)/s0; stockRets['SGOV']={ret:sgovRet,w:0}; }
+    }
+    Object.keys(target).forEach(function(c){
+      var w=target[c]||0;
+      if (!w||c==='CASH') return;
+      var p0=getPriceOnDate(DAILY[c],prevM), p1=getPriceOnDate(DAILY[c],sigM);
+      if(!p0||!p1) return;
+      var r=(p1-p0)/p0;
+      stockRets[c]={ret:r,w:w};
+      var tc=(holdings[c]||0)!==w?COST:0;
+      netRet+=w*r-Math.abs(w)*tc;
+    });
+    var b0=getPriceOnDate(refDaily,prevM), b1=getPriceOnDate(refDaily,sigM);
+    if(b0&&b1) bNav*=(b1/b0);
+    nav*=(1+netRet);
+    holdings=target;
+    records.push({month:sigM,nav:nav,bNav:bNav,pRet:netRet,holdings:holdings,scoringM:finalScoreM});
+  }
+  return records.length>=6 ? records : null;
+}
+
+function runLagAnalysis() {
+  if (!CACHE_BUILT) { alert('\u8acb\u5148\u6293\u53d6\u8cc7\u6599'); return; }
+  var INIT=gv('btCap')||100000;
+  // Define lag configs: [label, forceLag, skipMonth]
+  var configs=[
+    ['L1', 1, false],
+    ['L5', 5, false],
+    ['L10', 10, false],
+    ['L15', 15, false],
+    ['L22', 22, false],
+    ['LM', 'LM', false]
+  ];
+  var results=[];
+  configs.forEach(function(cfg){
+    var label=cfg[0], lag=cfg[1], sm=cfg[2];
+    var recs=runBTcoreWithLag(lag, sm);
+    if (!recs||!recs.length) { results.push({label:label,cagr:null,mdd:null,sharpe:null}); return; }
+    var k=kpi(recs, INIT);
+    results.push({label:label,cagr:k.cagr,mdd:k.mdd,sharpe:k.sharpe,nav:k.nav});
+  });
+
+  // Calculate half-life: find where CAGR drops to 50% of L1
+  var base=results[0].cagr||0;
+  var halfLife=null;
+  // Lag values for L1..LM (approximate trading days)
+  var lagDays=[1,5,10,15,22,22];
+  for (var i=1;i<results.length;i++){
+    if (results[i].cagr!==null && base>0 && results[i].cagr<=base*0.5) {
+      // Linear interpolate between i-1 and i
+      var x0=lagDays[i-1], x1=lagDays[i];
+      var y0=results[i-1].cagr, y1=results[i].cagr;
+      halfLife=y0!==y1?x0+(x1-x0)*(base*0.5-y0)/(y1-y0):x0;
+      break;
+    }
+  }
+
+  // Determine curve type
+  var cagrVals=results.map(function(r){return r.cagr!==null?r.cagr:0;});
+  var dropL5=base>0?(base-cagrVals[1])/base:0;
+  var dropL10=base>0?(base-cagrVals[2])/base:0;
+  var dropLM=base>0?(base-cagrVals[5])/base:0;
+  var curveType, curveDesc, curveColor;
+  if (dropL5<0.1 && dropL10<0.2 && dropLM>0.5) {
+    curveType='B'; curveColor='var(--ye)'; curveDesc='\u524d\u671f\u7a69\u3001\u5f8c\u671f\u5d29\uff1a\u6709\u6548\u8a0a\u865f\u96c6\u4e2d\u65bc\u6700\u8fd12-3\u9031';
+  } else if (dropL5>0.3) {
+    curveType='C'; curveColor='var(--re)'; curveDesc='\u65b7\u5d16\u5f0f\uff1a\u53ea\u9760\u6700\u5f8c\u5e7e\u5929\uff0c\u8abf\u67e5\u5f8c\u898b\u4e4b\u660e\u98a8\u96aa';
+  } else {
+    curveType='A'; curveColor='var(--gr)'; curveDesc='\u5e73\u6ed1\u884d\u6e1b\uff1a\u771f\u6b63\u8da8\u52e2\u5b58\u5728\uff0c\u6700\u5065\u5eb7';
+  }
+
+  // Build result HTML
+  var fmt=function(v){ return v!==null?(v>=0?'+':'')+((v*100).toFixed(1))+'%':'N/A'; };
+  var fmtS=function(v){ return v!==null?v.toFixed(2):'N/A'; };
+  var gc=function(v,inv){ if(v===null) return 'var(--mu)'; return (!inv?(v>=0):(v<=0))?'var(--gr)':'var(--re)'; };
+
+  var html='<div class="card" style="margin-bottom:10px">'
+    +'<div class="ct">\u8a0a\u865f\u7a69\u5b9a\u6027\u5206\u6790 \u2014 Lag\u8870\u6e1b\u66f2\u7dda</div>'
+    +'<div style="margin-bottom:8px;padding:8px;border-radius:6px;background:rgba(0,0,0,0.2);border-left:3px solid '+curveColor+'">'
+    +'<span style="font-weight:700;color:'+curveColor+'">&#x985e;&#x578b; '+curveType+'</span>'
+    +' <span style="font-size:11px;color:var(--mu)">'+curveDesc+'</span>'
+    +(halfLife?'<span style="float:right;font-size:11px;color:var(--ye)">\u8a0a\u865f\u534a\u885b\u671f\u2248 '+Math.round(halfLife)+' \u4ea4\u6613\u65e5</span>':'')
+    +'</div>'
+    +'<table><thead><tr>'
+    +'<th>Lag</th><th>\u8a0a\u865f\u5b9a\u7fa9</th><th>CAGR</th><th>MDD</th><th>Sharpe</th><th>\u76f8\u5c0dL1</th>'
+    +'</tr></thead><tbody>';
+
+  results.forEach(function(r,i){
+    var relCagr=base>0&&r.cagr!==null?((r.cagr-base)/Math.abs(base)):null;
+    var lagDef=['prevM-1\u65e5','prevM-5\u65e5','prevM-10\u65e5','prevM-15\u65e5','prevM-22\u65e5','allM[idx-2]'];
+    html+='<tr style="'+(i===0?'border-top:2px solid var(--tw);':'')+'">'
+      +'<td class="mono" style="font-weight:700;color:var(--tw)">'+r.label+'</td>'
+      +'<td style="font-size:10px;color:var(--mu)">'+lagDef[i]+'</td>'
+      +'<td class="mono" style="color:'+gc(r.cagr,false)+'">'+fmt(r.cagr)+'</td>'
+      +'<td class="mono" style="color:'+gc(r.mdd,true)+'">'+fmt(r.mdd)+'</td>'
+      +'<td class="mono" style="color:'+(r.sharpe!==null&&r.sharpe>=1?'var(--gr)':r.sharpe!==null&&r.sharpe>=0?'var(--ye)':'var(--re)')+'">'+fmtS(r.sharpe)+'</td>'
+      +'<td class="mono" style="color:'+(relCagr!==null&&relCagr>=-0.1?'var(--gr)':relCagr!==null&&relCagr>=-0.3?'var(--ye)':'var(--re)')+';">'+(relCagr!==null?(relCagr>=0?'+':'')+((relCagr*100).toFixed(1))+'pp':'--')+'</td>'
+      +'</tr>';
+  });
+
+  html+='</tbody></table>'
+    +'<div style="margin-top:10px;font-size:10px;color:var(--mu);line-height:1.7">'
+    +'\u8a0a\u865f\u534a\u885b\u671f = CAGR\u964d\u81f3L1\u4e4b50%\u6240\u9700\u7684Lag\u5929\u6578<br>'
+    +'\u985e\u578bA\u5e73\u6ed1\u884d\u6e1b = \u771f\u8da8\u52e2 &nbsp;|\u985e\u578bB\u524d\u7a69\u5f8c\u5d29 = 2-3\u9031\u52d5\u80fd &nbsp;|\u985e\u578bC\u65b7\u5d16 = \u6aa2\u67e5\u5f8c\u898b\u4e4b\u660e'
+    +'</div>'
+    +'</div>';
+
+  // Draw sparkline-style bar chart inline using canvas
+  html+='<div class="card"><div class="ct">CAGR \u884d\u6e1b\u5716</div>'
+    +'<canvas id="lagChart" style="width:100%;height:160px"></canvas></div>';
+
+  // Show in btRes area
+  var el=$('btRes');
+  if(el){ el.classList.remove('hidden'); }
+  var container=$('lagResult');
+  if(!container){
+    var d=document.createElement('div');
+    d.id='lagResult';
+    if(el) el.insertBefore(d, el.firstChild);
+    container=d;
+  }
+  container.innerHTML=html;
+
+  // Draw canvas chart after DOM update
+  setTimeout(function(){
+    var canvas=$('lagChart');
+    if(!canvas) return;
+    var W=canvas.offsetWidth||280, H=160;
+    canvas.width=W; canvas.height=H;
+    var ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,W,H);
+    var vals=results.map(function(r){return r.cagr!==null?r.cagr:0;});
+    var labels=results.map(function(r){return r.label;});
+    var maxV=Math.max.apply(null,vals.map(Math.abs))||0.01;
+    var pad={l:36,r:10,t:10,b:28};
+    var bW=Math.floor((W-pad.l-pad.r)/vals.length)-4;
+    var zeroY=pad.t+((H-pad.t-pad.b)*(maxV/(maxV*2)));
+    ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,zeroY); ctx.lineTo(W-pad.r,zeroY); ctx.stroke();
+    // half-line
+    if(base>0){
+      var halfY=pad.t+((H-pad.t-pad.b)*(1-(base*0.5+maxV)/(maxV*2)));
+      ctx.strokeStyle='rgba(255,184,48,0.3)'; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.moveTo(pad.l,halfY); ctx.lineTo(W-pad.r,halfY); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='rgba(255,184,48,0.6)'; ctx.font='9px monospace';
+      ctx.fillText('50%',W-pad.r-22,halfY-2);
+    }
+    vals.forEach(function(v,i){
+      var x=pad.l+i*(bW+4);
+      var barH=Math.abs(v)/(maxV*2)*(H-pad.t-pad.b);
+      var y=v>=0?zeroY-barH:zeroY;
+      var alpha=1-(i/vals.length)*0.4;
+      ctx.fillStyle=v>=0?('rgba(76,175,80,'+alpha+')'):'rgba(229,57,53,0.8)';
+      ctx.fillRect(x,y,bW,barH||1);
+      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='9px monospace';
+      ctx.fillText(labels[i],x+(bW/2)-8,H-8);
+      ctx.fillStyle=v>=0?'rgba(76,175,80,1)':'rgba(229,57,53,1)';
+      ctx.font='9px monospace';
+      var pct=(v*100).toFixed(1)+'%';
+      ctx.fillText(pct,x,v>=0?y-2:y+barH+10);
+    });
+    ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='9px monospace';
+    ctx.save(); ctx.translate(12,H/2); ctx.rotate(-Math.PI/2);
+    ctx.fillText('CAGR',0,0); ctx.restore();
+  }, 100);
 }
 
 function runBT() {
@@ -1735,9 +1843,11 @@ function renderBT(records,init,mode) {
       var lbl=(isShort?'S ':'')+k+(nm&&nm!==k?' '+nm:'');
       return '<span style="background:'+bg+';color:'+col+';border:1px '+bst+' '+col+';padding:1px 6px;border-radius:3px;font-size:10px;font-family:monospace;margin:1px;">'+lbl+' '+pct+'</span>';
     }).join('');
+    var lookAheadWarn=Math.abs(r.pRet)>0.40?'<div style="margin-top:3px;display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-family:monospace;background:rgba(255,184,48,0.15);border:1px solid var(--ye);color:var(--ye)">\u26a0 >40% \u5f02\u5e38</div>':'';
+    var scoringLabel=r.scoringM?'<div style="font-size:9px;color:var(--mu);margin-top:2px">\u9078\u80a1\u65e5:'+r.scoringM+'</div>':'';
     var summaryRow='<tr style="border-top:2px solid var(--bd);">'
-      +'<td class="mono" style="font-weight:700;vertical-align:top;">'+r.month+'</td>'
-      +'<td style="vertical-align:top;">'+holdStr+'</td>'
+      +'<td class="mono" style="font-weight:700;vertical-align:top;">'+r.month+scoringLabel+'</td>'
+      +'<td style="vertical-align:top;">'+holdStr+lookAheadWarn+'</td>'
       +'<td class="mono" style="font-size:10px;color:var(--bl);vertical-align:top;">'+(r.hurdle*100).toFixed(1)+'%</td>'
       +'<td class="mono" style="color:'+rc+';font-weight:700;vertical-align:top;">'+(r.pRet>=0?'+':'')+(r.pRet*100).toFixed(2)+'%</td>'
       +'<td class="mono" style="color:var(--tw);font-weight:700;vertical-align:top;">$'+Math.round(r.nav).toLocaleString()+'</td>'
@@ -1771,6 +1881,7 @@ function renderBT(records,init,mode) {
           +'</td>'
           +'<td colspan="2" style="padding:3px 8px;border-bottom:1px solid var(--bd);font-size:10px;color:'+rc2+';">'
           +'contrib: '+(contrib>=0?'+':'')+(contrib*100).toFixed(2)+'%'
+          +(sr.entry&&sr.entry!==r.month?'<br><span style="color:var(--mu);opacity:0.6;font-size:9px;font-family:monospace">entry:'+sr.entry+'</span>':'')
           +'</td></tr>';
       });
     }
@@ -1930,9 +2041,22 @@ async function calcSignal() {
   if(CACHE_SKIP_MO!==SKIP_MO){ await buildCache(); }
   var stocks=getEnabledStocks().filter(function(s){ return RAW_SCORES[s.c]; });
   if(!stocks.length)return;
-  var latestDate=Object.keys(RAW_SCORES[stocks[0].c]).sort().pop();
-  var hurdle=getHurdle(latestDate);
-  var allScores=calcAllScores(latestDate);
+  var masterTicker2=DAILY['^TWII']?'^TWII':(DAILY['0050']?'0050':(DAILY['SPY']?'SPY':stocks[0].c));
+  var refDaily2=DAILY[masterTicker2];
+  var sigLAG=parseInt($("btLag")?$("btLag").value:"1")||0;
+  if(sigLAG<0)sigLAG=0; if(sigLAG>22)sigLAG=22;
+  // Anchor = this month's last trading day (month-end), same concept as backtest prevM
+  var allRebalDates2=getPreciseRebalanceDates(refDaily2,"1");
+  var thisMonthEnd=allRebalDates2[allRebalDates2.length-1];
+  // T-(N): step back sigLAG workdays from month-end (FIXED per month, not relative to today)
+  var scoringDate=(sigLAG===0)?thisMonthEnd:getPrevWorkDay(refDaily2,thisMonthEnd,sigLAG);
+  if(SKIP_MO) scoringDate=getPrevWorkDay(refDaily2,scoringDate,22);
+  // t-1 confirmation: always month-end minus 1 workday (fixed anchor)
+  var confirmDate=getPrevWorkDay(refDaily2,thisMonthEnd,1);
+  var hurdle=getHurdle(scoringDate);
+  var hurdleConf=getHurdle(confirmDate);
+  var allScores=calcAllScores(scoringDate);
+  var allScoresConf=calcAllScores(confirmDate);
   var mode=$('poolMode').value, ct=gv('corrT')||0.75;
   var sel=[], rejectedMap={};
   allScores.forEach(function(r){ if(r.r240<=hurdle) rejectedMap[r.s.c]='\u0054\u0053 \u6DD8\u6C70'; });
@@ -1942,7 +2066,7 @@ async function calcSignal() {
     for(var ci=0; ci<candidates.length; ci++){
       var cand=candidates[ci];
       if(sel.length>=totalMax){ rejectedMap[cand.s.c]='\u540d\u984d\u5df2\u6eff'; continue; }
-      if(sel.every(function(x){ return Math.abs(calcCorr(cand.s.c,x.s.c,latestDate))<ct; })) sel.push(cand);
+      if(sel.every(function(x){ return Math.abs(calcCorr(cand.s.c,x.s.c,scoringDate))<ct; })) sel.push(cand);
       else rejectedMap[cand.s.c]='\u76f8\u95dc\u6027\u904e\u9ad8';
     }
   } else {
@@ -1954,21 +2078,59 @@ async function calcSignal() {
       for(var ci2=0; ci2<list.length; ci2++){
         var cand=list[ci2];
         if(picked>=q){ rejectedMap[cand.s.c]='\u914d\u984d\u5df2\u6eff'; continue; }
-        if(sel.every(function(x){ return Math.abs(calcCorr(cand.s.c,x.s.c,latestDate))<ct; })){ sel.push(cand); picked++; }
+        if(sel.every(function(x){ return Math.abs(calcCorr(cand.s.c,x.s.c,scoringDate))<ct; })){ sel.push(cand); picked++; }
         else{ rejectedMap[cand.s.c]='\u76f8\u95dc\u6027\u904e\u9ad8'; }
       }
     });
   }
-  renderSig(sel,allScores.slice().sort(function(a,b){return a.score-b.score;}).slice(0,3),allScores,latestDate,hurdle);
-  renderST(allScores,hurdle,sel.map(function(s){return s.s.c;}),rejectedMap,latestDate);
+  // Build t-1 confirmation selection (same pool logic, fixed at confirmDate)
+  var selConf=[], rejConf={};
+  allScoresConf.forEach(function(r){ if(r.r240<=hurdleConf) rejConf[r.s.c]=1; });
+  if(mode==='large'){
+    var candConf=allScoresConf.filter(function(r){return !rejConf[r.s.c];}).sort(function(a,b){return b.score-a.score;});
+    var tmxC=parseInt($('btH').value)||5;
+    for(var ci3=0;ci3<candConf.length;ci3++){
+      var cc=candConf[ci3];
+      if(selConf.length>=tmxC){rejConf[cc.s.c]=1;continue;}
+      if(selConf.every(function(x){return Math.abs(calcCorr(cc.s.c,x.s.c,confirmDate))<ct;})) selConf.push(cc);
+      else rejConf[cc.s.c]=1;
+    }
+  } else {
+    var subC={'tw':[],'us':[],'etf':[]};
+    allScoresConf.filter(function(r){return !rejConf[r.s.c];}).forEach(function(r){if(subC[r.s.pool])subC[r.s.pool].push(r);});
+    ['us','tw','etf'].forEach(function(p){
+      var qC={'tw':gv('btQuotaTW'),'us':gv('btQuotaUS'),'etf':gv('btQuotaETF')}[p], pkC=0;
+      subC[p].sort(function(a,b){return b.score-a.score;}).forEach(function(cc){
+        if(pkC>=qC){rejConf[cc.s.c]=1;return;}
+        if(selConf.every(function(x){return Math.abs(calcCorr(cc.s.c,x.s.c,confirmDate))<ct;})){ selConf.push(cc); pkC++; }
+        else rejConf[cc.s.c]=1;
+      });
+    });
+  }
+  var selConfCodes=selConf.map(function(r){return r.s.c;});
+  var selSigCodes=sel.map(function(s){return s.s.c;});
+  renderSig(sel,allScores.slice().sort(function(a,b){return a.score-b.score;}).slice(0,3),allScores,scoringDate,hurdle,confirmDate,selConfCodes,thisMonthEnd,sigLAG);
+  renderST(allScores,hurdle,selSigCodes,rejectedMap,scoringDate);
 }
 
 // FIX5: renderSig - no emoji in poolNames
-function renderSig(sel,wk,all,date,hurdle) {
+function renderSig(sel,wk,all,date,hurdle,confirmDate,selConfCodes,monthEnd,lagN) {
   var zf=function(v){return v!==null?(v>=0?'+':'')+v.toFixed(2):'-';};
   var pf=function(v){return v!==null?(v>=0?'+':'')+(v*100).toFixed(1)+'%':'-';};
   var tnx=getTNXRate(date);
-  var html='<div style="font-size:11px;color:var(--mu);margin-bottom:9px">Date: <b style="color:var(--tw)">'+date+'</b> | ^TNX: <b style="color:var(--bl)">'+(tnx*100).toFixed(2)+'%</b> | Hurdle: <b style="color:var(--ye)">'+(hurdle*100).toFixed(2)+'%</b></div>';
+  var vixNow=getVIX(date), vixDelta=getVIXDelta(date);
+  var dynOn=$('vixHurdleOn')&&$('vixHurdleOn').checked;
+  var vixStr=dynOn?' | VIX: <b style="color:'+(vixNow>35&&vixDelta<-5?'var(--gr)':'var(--ye)')+'">'+(vixNow).toFixed(1)+(vixDelta<-5&&vixNow>35?' ↓恢復':'')+'</b>':'';
+  var lagLabel=lagN>0?('T-'+lagN):'T-0(\u6708\u672b)';
+  var html='<div style="font-size:11px;color:var(--mu);margin-bottom:9px">'
+    +'<span style="background:var(--tw);color:#000;padding:1px 6px;border-radius:2px;font-weight:700;font-family:monospace">'+lagLabel+'</span>'
+    +' <b style="color:var(--tw)">'+date+'</b>'
+    +' <span style="margin:0 6px;color:var(--bd)">|</span>'
+    +'<span style="background:var(--mu);color:#000;padding:1px 6px;border-radius:2px;font-weight:700;font-family:monospace">t-1</span>'
+    +' <b style="color:var(--mu)">'+(confirmDate||'')+'</b>'
+    +' <span style="margin:0 6px;color:var(--bd)">|</span>'
+    +'^TNX: <b style="color:var(--bl)">'+(tnx*100).toFixed(2)+'%</b>'+vixStr+' | Hurdle: <b style="color:var(--ye)">'+(hurdle*100).toFixed(2)+'%</b>'
+    +'</div>';
   var selPools={'us':[],'tw':[],'etf':[]};
   sel.forEach(function(r){ var p=r.s.pool; if(p==='us'||p==='tw'||p==='etf') selPools[p].push(r); });
   // FIX5: pure ASCII/unicode labels, no surrogate-pair emoji
@@ -1992,6 +2154,38 @@ function renderSig(sel,wk,all,date,hurdle) {
     html+='</div>';
   });
   if(!sel.length) html+='<div style="color:var(--ye);font-size:12px;margin-bottom:9px">\u7121\u6a19\u7684\u901a\u904e TS \u8207\u5b63\u7dda\u9580\u6ebb - \u5168\u6578\u6301\u6709\u73fe\u91d1</div>';
+  // t-1 confirmation comparison strip
+  if(confirmDate&&selConfCodes) {
+    var sigSet={}, confSet={};
+    sel.forEach(function(r){sigSet[r.s.c]=1;});
+    selConfCodes.forEach(function(c){confSet[c]=1;});
+    var allCodes=[];
+    sel.forEach(function(r){if(allCodes.indexOf(r.s.c)<0)allCodes.push(r.s.c);});
+    selConfCodes.forEach(function(c){if(allCodes.indexOf(c)<0)allCodes.push(c);});
+    html+='<div style="margin-top:18px;border-top:1px solid var(--bd);padding-top:12px">';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--mu);margin-bottom:8px;letter-spacing:1px">\u5c0d\u7167\u8868</div>';
+    html+='<table style="width:100%;border-collapse:collapse;font-size:11px;font-family:monospace">';
+    html+='<tr style="color:var(--mu);font-size:10px">';
+    html+='<td style="padding:3px 6px;width:70px">\u6a19\u7684</td>';
+    html+='<td style="padding:3px 6px;text-align:center;color:var(--tw)">T-'+(lagN||1)+'<br>\u8a02\u865f\u65e5</td>';
+    html+='<td style="padding:3px 6px;text-align:center;color:var(--mu)">t-1<br>\u78ba\u8a8d\u65e5</td>';
+    html+='<td style="padding:3px 6px;text-align:center">\u72c0\u614b</td>';
+    html+='</tr>';
+    allCodes.forEach(function(c) {
+      var inSig=!!sigSet[c], inConf=!!confSet[c];
+      var status,sc;
+      if(inSig&&inConf){status='\u2713 \u7a69\u5b9a';sc='color:var(--gr)';}
+      else if(inSig&&!inConf){status='\u2193 \u6708\u5e95\u6389\u51fa';sc='color:var(--ye)';}
+      else{status='\u2191 \u65b0\u9032\u5165';sc='color:var(--bl)';}
+      html+='<tr style="border-top:1px solid var(--bd)">';
+      html+='<td style="padding:4px 6px;font-weight:700">'+c+'</td>';
+      html+='<td style="padding:4px 6px;text-align:center">'+(inSig?'\u2605':'\u2014')+'</td>';
+      html+='<td style="padding:4px 6px;text-align:center">'+(inConf?'\u2605':'\u2014')+'</td>';
+      html+='<td style="padding:4px 6px;'+sc+'">'+status+'</td>';
+      html+='</tr>';
+    });
+    html+='</table></div>';
+  }
   $('sigContent').innerHTML=html;
 }
 
@@ -2000,7 +2194,7 @@ function renderST(all,hurdle,selectedCodes,rejectedMap,scoreM) {
   var zf=function(v){return (v!==null?(v>=0?'+':'')+v.toFixed(2):'-');};
   var pf=function(v){return (v!==null?(v>=0?'+':'')+(v*100).toFixed(1)+'%':'-');};
   var html='';
-  ['tw','us','jp','cn','etf'].forEach(function(pKey){
+  ['tw','us','etf'].forEach(function(pKey){
     var pStocks=all.filter(function(r){return r.s.pool===pKey;}).sort(function(a,b){return b.score-a.score;});
     if(!pStocks.length)return;
     html+='<tr><td colspan="12" style="background:var(--sf2);color:var(--tx);font-weight:700;text-align:center;padding:8px;">'+pKey.toUpperCase()+' \u7af6\u722d\u6392\u884c</td></tr>';
