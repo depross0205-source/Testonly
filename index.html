@@ -3781,7 +3781,15 @@ function renderPool() {
     g.stocks.forEach(function(s) {
       var isUS = !g.tw;
       var locked = s.locked || s.c === 'SGOV';
+      var groupTitle = (g.title || '').toUpperCase();
+      var groupPool = (s.pool || g.pool || '').toLowerCase();
+      var isETFGroup = groupPool === 'etf' || groupTitle.indexOf('[ETF]') !== -1;
+
+      // 預設選取規則：ETF 只保留 SPY / SGOV 為 ON，其餘 ETF 預設 OFF。
+      // 非 ETF 維持原本 defaultOn 設定；CN 概念股仍依原設定 defaultOn:false。
       var defaultOn = (s.defaultOn === false || g.defaultOn === false) ? false : true;
+      if (isETFGroup) defaultOn = (s.c === 'SPY' || s.c === 'SGOV');
+
       var chip = document.createElement('span');
       chip.className = 'sc' + (defaultOn ? ' act' : '') + (isUS ? ' usc' : '');
       chip.dataset.code = s.c;
@@ -5371,8 +5379,57 @@ function wfKpiFromRecords(recs) {
   return kpi(recs, init);
 }
 
+function wfCollectSettings() {
+  var poolM = document.getElementById('poolMode') ? document.getElementById('poolMode').value : 'large';
+  var n = poolM === 'large' ? (parseInt($('btH') ? $('btH').value : '5') || 5)
+    : ((parseInt($('btQuotaTW') ? $('btQuotaTW').value : '0') || 0) + (parseInt($('btQuotaUS') ? $('btQuotaUS').value : '0') || 0) + (parseInt($('btQuotaETF') ? $('btQuotaETF').value : '0') || 0));
+  var wtEl = document.querySelector('input[name="wtMode"]:checked');
+  var wt = wtEl ? wtEl.value : 'eq';
+  var lagEl = document.querySelector('input[name="lagMode"]:checked');
+  var lag = lagEl ? lagEl.value : '1';
+  var freq = getFreq();
+  var regOn = $('btRegime') && $('btRegime').value === 'on';
+  var regExp = gv('btRegimeExp') || 100;
+  var shieldOn = $('btShieldGate') && $('btShieldGate').value === 'on';
+  var shieldMA = parseInt($('btShieldMA') ? $('btShieldMA').value : '240') || 240;
+  var skipMo = !!($('btSkipMo') && $('btSkipMo').checked);
+  var ma60 = $('ma60Filter') ? $('ma60Filter').value : 'off';
+  var cost = (gv('btC') || 0.3);
+  var corrT = gv('corrT') || 0.75;
+  var indLim = parseInt($('btIndLimit') ? $('btIndLimit').value : '0') || 0;
+  var shortN = parseInt($('btSN') ? $('btSN').value : '0') || 0;
+  var capEl = document.querySelector('input[name="capMode"]:checked');
+  var capMode = capEl ? capEl.value : 'neutral';
+  return {
+    poolMode: poolM, n: n, wt: wt, lag: lag, freq: freq,
+    regOn: regOn, regExp: regExp, shieldOn: shieldOn, shieldMA: shieldMA,
+    skipMo: skipMo, ma60: ma60, cost: cost, corrT: corrT,
+    indLim: indLim, shortN: shortN, capMode: capMode
+  };
+}
+function wfSettingsTag(cfg, trainY, testY, label) {
+  var parts = [];
+  parts.push(label);
+  parts.push('N=' + cfg.n);
+  parts.push('Pool=' + (cfg.poolMode === 'large' ? 'Large' : 'Small'));
+  parts.push('Wt=' + cfg.wt.toUpperCase());
+  parts.push('Train=' + trainY + 'Y');
+  parts.push('Test=' + testY + 'Y');
+  parts.push('Freq=' + (cfg.freq === '2' ? 'Semi' : 'Mo'));
+  parts.push('Lag=t-' + cfg.lag);
+  if (cfg.skipMo) parts.push('SkipMo');
+  if (cfg.regOn) parts.push('Regime(' + cfg.regExp + '%)');
+  if (cfg.shieldOn) parts.push('Shield(' + cfg.shieldMA + 'd)');
+  if (cfg.ma60 === 'on') parts.push('MA60');
+  if (cfg.shortN > 0) parts.push('Short=' + cfg.shortN);
+  if (cfg.indLim > 0) parts.push('IndLim=' + cfg.indLim);
+  return parts.join(' | ');
+}
+
 function runWalkForward() {
   if(!CACHE_BUILT){ alert('Build cache first'); return; }
+  SKIP_MO=!!($('btSkipMo')&&$('btSkipMo').checked);
+  CORR_WIN=parseInt($('corrW')?$('corrW').value:'24')||24;
   var minTY=parseInt($('wfMinTrain')?$('wfMinTrain').value:'8')||8;
   var testWY=parseInt($('wfTestWin')?$('wfTestWin').value:'1')||1;
   var masterTicker=DAILY['^TWII']?'^TWII':(DAILY['SPY']?'SPY':null);
@@ -5385,23 +5442,23 @@ function runWalkForward() {
   var firstTestYear=firstYear+minTY;
   if(firstTestYear>lastYear){ alert('Not enough data for Walk-Forward'); return; }
   var init=gv('btCap')||100000;
-  var mh=parseInt($('btH')?$('btH').value:'5')||5;
-  var mode=getWeightMode();
   var origS=$('btS')?$('btS').value:'';
   var origE=$('btE')?$('btE').value:'';
-  sl('stressLog','Running Walk-Forward...',null); showL('Walk-Forward Analysis...');
-  setTimeout(function(){
+  var cfg=wfCollectSettings();
+  sl('stressLog','Running Walk-Forward (Anchored)...',null); showL('Walk-Forward Analysis...');
+  setTimeout(async function(){
     try {
+      if(CACHE_SKIP_MO!==SKIP_MO){ await buildCache(); }
       var results=[],combinedOOS=[];
       for(var ty=firstTestYear; ty+testWY-1<=lastYear; ty+=testWY){
         var isStart=firstYear+'-01', isEnd=(ty-1)+'-12';
         var tStart=ty+'-01', tEnd=(ty+testWY-1)+'-12';
         if($('btS'))$('btS').value=isStart;
         if($('btE'))$('btE').value=isEnd;
-        var isRecs=runBTcore(mh,mode);
+        var isRecs=runBTcore();
         if($('btS'))$('btS').value=tStart;
         if($('btE'))$('btE').value=tEnd;
-        var oosRecs=runBTcore(mh,mode);
+        var oosRecs=runBTcore();
         if(!isRecs || !oosRecs || isRecs.length<2 || oosRecs.length<2) continue;
         var isK=wfKpiFromRecords(isRecs), oosK=wfKpiFromRecords(oosRecs);
         if(!isK || !oosK) continue;
@@ -5420,7 +5477,8 @@ function runWalkForward() {
       var sAvg=combinedOOS.reduce(function(a,b){return a+b;},0)/combinedOOS.length;
       var sStd=Math.sqrt(combinedOOS.reduce(function(a,b){return a+Math.pow(b-sAvg,2);},0)/(combinedOOS.length>1?combinedOOS.length-1:1))*Math.sqrt(periods);
       var sSharpe=sStd>0?(sCagr-0.015)/sStd:0;
-      renderWalkForward(results,{cagr:sCagr,mdd:sMdd,sharpe:sSharpe,months:combinedOOS.length,avgRatio:wfAvgRatio(results),medianRatio:wfMedianRatio(results)});
+      var settingsLabel=wfSettingsTag(cfg,minTY,testWY,'ANCHORED WF');
+      renderWalkForward(results,{cagr:sCagr,mdd:sMdd,sharpe:sSharpe,months:combinedOOS.length,avgRatio:wfAvgRatio(results),medianRatio:wfMedianRatio(results)},settingsLabel);
       sl('stressLog','Walk-Forward: '+results.length+' windows, OOS='+combinedOOS.length+' periods',true);
     } catch(e){
       if($('btS'))$('btS').value=origS;
@@ -5432,11 +5490,12 @@ function runWalkForward() {
   },80);
 }
 
-function renderWalkForward(results,spliced) {
+function renderWalkForward(results,spliced,settingsLabel) {
   function fp(v){return (v>=0?'+':'')+(v*100).toFixed(2)+'%';}
   function gc(v){return v>=0?'var(--gr)':'var(--re)';}
   var html='<div class="card" style="border-top:3px solid var(--ye);margin-bottom:10px;">';
   html+='<div class="ct">WALK-FORWARD ANALYSIS (ANCHORED)</div>';
+  if(settingsLabel) html+='<div style="font-size:10px;color:var(--mu);margin-bottom:8px;word-break:break-all;">'+settingsLabel+'</div>';
   html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">';
   html+='<div class="card" style="border-top:2px solid var(--gr);padding:9px;"><div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:4px">OOS CAGR (spliced)</div><div class="mono" style="font-size:20px;color:'+gc(spliced.cagr)+'">'+fp(spliced.cagr)+'</div></div>';
   html+='<div class="card" style="border-top:2px solid var(--re);padding:9px;"><div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:4px">OOS MDD (spliced)</div><div class="mono" style="font-size:20px;color:var(--re)">'+fp(spliced.mdd)+'</div></div>';
@@ -5468,6 +5527,8 @@ function renderWalkForward(results,spliced) {
 
 function runRollingWalkForward() {
   if(!CACHE_BUILT){ alert('Build cache first'); return; }
+  SKIP_MO=!!($('btSkipMo')&&$('btSkipMo').checked);
+  CORR_WIN=parseInt($('corrW')?$('corrW').value:'24')||24;
   var trainY=parseInt($('wfMinTrain')?$('wfMinTrain').value:'8')||8;
   var testY=parseInt($('wfTestWin')?$('wfTestWin').value:'1')||1;
   var masterTicker=DAILY['^TWII']?'^TWII':(DAILY['SPY']?'SPY':null);
@@ -5480,23 +5541,23 @@ function runRollingWalkForward() {
   var firstTestYear=firstYear+trainY;
   if(firstTestYear>lastYear){ alert('Not enough data for Rolling Walk-Forward'); return; }
   var init=gv('btCap')||100000;
-  var mh=parseInt($('btH')?$('btH').value:'5')||5;
-  var mode=getWeightMode();
   var origS=$('btS')?$('btS').value:'';
   var origE=$('btE')?$('btE').value:'';
+  var cfg=wfCollectSettings();
   sl('stressLog','Running Rolling Walk-Forward...',null); showL('Rolling Walk-Forward Analysis...');
-  setTimeout(function(){
+  setTimeout(async function(){
     try {
+      if(CACHE_SKIP_MO!==SKIP_MO){ await buildCache(); }
       var results=[],combinedOOS=[];
       for(var ty=firstTestYear; ty+testY-1<=lastYear; ty+=testY){
         var trStart=(ty-trainY)+'-01', trEnd=(ty-1)+'-12';
         var teStart=ty+'-01', teEnd=(ty+testY-1)+'-12';
         if($('btS'))$('btS').value=trStart;
         if($('btE'))$('btE').value=trEnd;
-        var trainRecs=runBTcore(mh,mode);
+        var trainRecs=runBTcore();
         if($('btS'))$('btS').value=teStart;
         if($('btE'))$('btE').value=teEnd;
-        var oosRecs=runBTcore(mh,mode);
+        var oosRecs=runBTcore();
         if(!trainRecs||!oosRecs||trainRecs.length<2||oosRecs.length<2) continue;
         var tk=wfKpiFromRecords(trainRecs), ok=wfKpiFromRecords(oosRecs);
         if(!tk || !ok) continue;
@@ -5515,7 +5576,8 @@ function runRollingWalkForward() {
       var sAvg=combinedOOS.reduce(function(a,b){return a+b;},0)/combinedOOS.length;
       var sStd=Math.sqrt(combinedOOS.reduce(function(a,b){return a+Math.pow(b-sAvg,2);},0)/(combinedOOS.length>1?combinedOOS.length-1:1))*Math.sqrt(periods);
       var sSharpe=sStd>0?(sCagr-0.015)/sStd:0;
-      renderRollingWalkForward(results,{cagr:sCagr,mdd:sMdd,sharpe:sSharpe,months:combinedOOS.length,avgRatio:wfAvgRatio(results),medianRatio:wfMedianRatio(results)});
+      var settingsLabel=wfSettingsTag(cfg,trainY,testY,'ROLLING WF');
+      renderRollingWalkForward(results,{cagr:sCagr,mdd:sMdd,sharpe:sSharpe,months:combinedOOS.length,avgRatio:wfAvgRatio(results),medianRatio:wfMedianRatio(results)},settingsLabel);
       sl('stressLog','Rolling Walk-Forward: '+results.length+' windows, OOS='+combinedOOS.length+' periods',true);
     } catch(e){
       if($('btS'))$('btS').value=origS;
@@ -5527,11 +5589,12 @@ function runRollingWalkForward() {
   },80);
 }
 
-function renderRollingWalkForward(results,spliced) {
+function renderRollingWalkForward(results,spliced,settingsLabel) {
   function fp(v){return (v>=0?'+':'')+(v*100).toFixed(2)+'%';}
   function gc(v){return v>=0?'var(--gr)':'var(--re)';}
   var html='<div class="card" style="border-top:3px solid var(--tw);margin-bottom:10px;">';
   html+='<div class="ct">ROLLING WALK-FORWARD ANALYSIS</div>';
+  if(settingsLabel) html+='<div style="font-size:10px;color:var(--mu);margin-bottom:8px;word-break:break-all;">'+settingsLabel+'</div>';
   html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">';
   html+='<div class="card" style="border-top:2px solid var(--gr);padding:9px;"><div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:4px">Rolling OOS CAGR</div><div class="mono" style="font-size:20px;color:'+gc(spliced.cagr)+'">'+fp(spliced.cagr)+'</div></div>';
   html+='<div class="card" style="border-top:2px solid var(--re);padding:9px;"><div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:4px">Rolling OOS MDD</div><div class="mono" style="font-size:20px;color:var(--re)">'+fp(spliced.mdd)+'</div></div>';
@@ -5554,7 +5617,8 @@ function renderRollingWalkForward(results,spliced) {
   html+='<div style="font-size:10px;color:var(--mu);margin-top:8px;">Rolling WF uses fixed-length training windows. OOS/IS ratio is computed per window, then averaged.</div>';
   html+='</div>';
   $('stressRes').classList.remove('hidden');
-  $('stressMetrics').innerHTML=html+$('stressMetrics').innerHTML;
+  var el=$('stressMetrics');
+  if(el) el.innerHTML=el.innerHTML+html;
 }
 
 
@@ -6259,12 +6323,23 @@ function renderCostSensitivity(results, N) {
   var el = document.getElementById('stressMetrics');
   if (el) el.innerHTML = el.innerHTML + html;
 }
-window.onload = async function() {
+window.onload = function() {
   renderPool();
   initGroupToggles();
   togglePoolUI();
-  var hasData = await loadFromDB();
-  if(!hasData) console.log('No local data found in IndexedDB.');
+
+  // 啟動時不自動從 IndexedDB 載入快取。
+  // 目的：避免舊 DAILY / RAW_SCORES 污染 WF、Rolling WF、T-N Sweep 結果。
+  DAILY = {};
+  RAW_SCORES = {};
+  CACHE_BUILT = false;
+  CACHE_TS = null;
+  CACHE_SKIP_MO = false;
+
+  updFetchStat();
+  updTNX();
+  sl('dlLog', 'Clean start：已停用啟動自動快取載入，請手動抓取或 JSON 還原。', true);
+  console.log('[INIT] clean start: IndexedDB auto-load disabled.');
 };
 </script>
 </body>
