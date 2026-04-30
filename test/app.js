@@ -1,3 +1,24 @@
+var DAILY={}, RAW_SCORES={}, BT_RESULT=null, CHART={}, CACHE_BUILT=false, CACHE_TS=null, SKIP_MO=false, CACHE_SKIP_MO=false, CORR_WIN=24;
+var N_TREND=60; var MOM_CONSISTENCY_MULT=1.2; var REBAL_FREQ="1";
+
+function updTotalH() {
+  var t = gv('btQuotaTW') + gv('btQuotaUS') + gv('btQuotaETF');
+  if (document.getElementById('poolMode').value === 'small') {
+    if ($('btH')) $('btH').value = t;
+  }
+}
+
+function togglePoolUI() {
+  var isLarge = document.getElementById('poolMode').value === 'large';
+  ['btQuotaTW', 'btQuotaUS', 'btQuotaETF'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if(el) { el.disabled = isLarge; el.style.opacity = isLarge ? "0.3" : "1"; }
+  });
+  var hInput = document.getElementById('btH');
+  if(hInput) { hInput.disabled = !isLarge; hInput.style.background = isLarge ? "var(--bg)" : "rgba(255,255,255,0.05)"; }
+  if (!isLarge) updTotalH();
+}
+
 function renderPool() {
   var container = document.getElementById('poolContainer');
   if (!container) return;
