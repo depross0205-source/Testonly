@@ -11,6 +11,10 @@ function renderPool() {
     div.innerHTML =
       '<div class="ih" onclick="toggleInd(this)">' +
         '<span class="in">' + g.title + '</span>' +
+        '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:6px">' +
+          '<button class="bo sm" style="padding:1px 5px;font-size:10px;color:var(--gr);border-color:var(--gr)" onclick="event.stopPropagation();selectGroup(this,true)">全</button>' +
+          '<button class="bo sm" style="padding:1px 5px;font-size:10px;color:var(--re);border-color:var(--re)" onclick="event.stopPropagation();selectGroup(this,false)">停</button>' +
+        '</span>' +
         '<span class="ic" id="' + icId + '">' + total + '/' + total + '</span>' +
       '</div>' +
       '<div class="ib" id="' + ibId + '"></div>';
@@ -93,6 +97,16 @@ function initGroupToggles(){document.querySelectorAll('.ih').forEach(function(ih
 function toggleStock(code){var el=document.querySelector('[data-code="'+code+'"]');if(!el)return;var on=el.dataset.on==='1';el.dataset.on=on?'0':'1';el.classList.toggle('act',!on);updCount(el);}
 function deleteStock(code){var el=document.querySelector('[data-code="'+code+'"]');if(!el||el.dataset.type==='tw50'||code==='SGOV')return;var ib=el.closest('.ib');el.remove();if(ib)updCountByIb(ib);}
 function toggleInd(ih){var ib=ih.nextElementSibling;if(ib)ib.classList.toggle('col');}
+function selectGroup(btn, turnOn) {
+  var ib = btn.closest('.ig').querySelector('.ib');
+  if (!ib) return;
+  ib.querySelectorAll('[data-code]').forEach(function(el) {
+    if (el.dataset.type === 'tw50') return; // 鎖定項目不動
+    el.dataset.on = turnOn ? '1' : '0';
+    turnOn ? el.classList.add('act') : el.classList.remove('act');
+  });
+  updAllCounts();
+}
 function selectAll(){document.querySelectorAll('[data-code]').forEach(function(el){el.dataset.on='1';el.classList.add('act');});updAllCounts();}
 function selectNone(){document.querySelectorAll('[data-code]').forEach(function(el){el.dataset.on='0';el.classList.remove('act');});updAllCounts();}
 function selectTW(turnOn){document.querySelectorAll('[data-code][data-tw="1"]').forEach(function(el){el.dataset.on=turnOn?'1':'0';turnOn?el.classList.add('act'):el.classList.remove('act');});updAllCounts();}
