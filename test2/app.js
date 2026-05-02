@@ -928,16 +928,16 @@ function downloadAuditCSV() {
       var ret = sr.ret;
       rows.push([r.month,c,getStockName(c),(nomW*100).toFixed(6),(effW*100).toFixed(6),ret===null?'':(ret*100).toFixed(6),ret===null?'':(effW*ret*100).toFixed(6),sr.prevME_Date||'',sr.currME_Date||'',sr.prevAdjPrice==null?'':sr.prevAdjPrice,sr.currAdjPrice==null?'':sr.currAdjPrice,sr.method||'',sr.note||'',sr.flag||'']);
     });
-    rows.push([r.month,'__MONTH_TOTAL__','MONTH TOTAL','','',((r.grossRet||0)*100).toFixed(6),((r.grossRet||0)*100).toFixed(6),'','','','','GrossReturn','NetReturn%='+((r.pRet||0)*100).toFixed(6)+'; ImplicitFriction%='+((r.implicitFriction||0)*100).toFixed(6)+'; CostModel%='+((r.costFriction||0)*100).toFixed(6),'']);
+    rows.push([r.month,'__MONTH_TOTAL__','MONTH TOTAL','','',((r.grossRet||0)*100).toFixed(6),((r.grossRet||0)*100).toFixed(6),'','','','','GrossReturn','NetReturn%='+((r.pRet||0)*100).toFixed(6)+'; ImplicitFriction%='+((r.implicitFriction||0)*100).toFixed(6)+'; CostModel%='+((r.costFriction||0)*100).toFixed(6)+'; ClosureCostDiff%='+((r.closureCostDiff||0)*100).toFixed(10)+'; ClosureNavDiff%='+((r.closureNavDiff||0)*100).toFixed(10),'']);
   });
   var csv = rows.map(function(row){ return row.map(csvEscapeFinal).join(','); }).join('\n');
   dlText(csv, 'V1.9_Final_Audit_' + new Date().toISOString().slice(0,10) + '.csv', 'text/csv;charset=utf-8');
 }
 function downloadFrictionCSV() {
   if (!BT_RESULT || !BT_RESULT.records) { alert('請先執行回測'); return; }
-  var rows = [['Month','GrossReturn%','NetReturn%','ImplicitFriction%','FrictionBps','CostModel%','N_Valid','HasLargeReturn','MissingNotes']];
+  var rows = [['Month','GrossReturn%','NetReturn%','ImplicitFriction%','FrictionBps','TurnoverCost%','ImpactCost%','TotalCost%','Turnover%','ClosureCostDiff%','ClosureNavDiff%','N_Valid','HasLargeReturn','MissingNotes']];
   BT_RESULT.records.forEach(function(r){
-    rows.push([r.month,((r.grossRet||0)*100).toFixed(6),((r.pRet||0)*100).toFixed(6),((r.implicitFriction||0)*100).toFixed(6),((r.implicitFriction||0)*10000).toFixed(2),((r.costFriction||0)*100).toFixed(6),r.nValidStocks||0,r.hasLargeReturn?'TRUE':'FALSE',(r.missingNotes||[]).join(';')]);
+    rows.push([r.month,((r.grossRet||0)*100).toFixed(6),((r.pRet||0)*100).toFixed(6),((r.implicitFriction||0)*100).toFixed(6),((r.implicitFriction||0)*10000).toFixed(2),((r.turnoverCost||0)*100).toFixed(6),((r.impactCost||0)*100).toFixed(6),((r.totalCost||r.costFriction||0)*100).toFixed(6),((r.turnover||0)*100).toFixed(6),((r.closureCostDiff||0)*100).toFixed(10),((r.closureNavDiff||0)*100).toFixed(10),r.nValidStocks||0,r.hasLargeReturn?'TRUE':'FALSE',(r.missingNotes||[]).join(';')]);
   });
   var csv = rows.map(function(row){ return row.map(csvEscapeFinal).join(','); }).join('\n');
   dlText(csv, 'V1.9_Friction_Summary_' + new Date().toISOString().slice(0,10) + '.csv', 'text/csv;charset=utf-8');
@@ -1177,8 +1177,9 @@ function runBTcore(mh, mode, opts) {
 
     var baseSlippage=0.001;
     var impactMultiplier=Math.max(1,Math.pow(turnover/0.2,1.5));
+    var turnoverCost = turnover * COST;
     var impactCost=baseSlippage*impactMultiplier;
-    var friction=(turnover*COST)+impactCost;
+    var totalCost = turnoverCost + impactCost;
 
     var cashRet=0;
     if (DAILY['SGOV']&&getPriceOnDate(DAILY['SGOV'],prevM)&&getPriceOnDate(DAILY['SGOV'],sigM)) {
@@ -1217,10 +1218,19 @@ function runBTcore(mh, mode, opts) {
     });
     if (!isFinite(grossRet)||grossRet<=-0.9999) grossRet=-0.9999;
 
-    var netRet=(1-friction)*(1+grossRet)-1;
+    // FINAL CLOSURE MODEL:
+    // Gross return is rebuilt from each holding's own market month-end prices.
+    // Net return is exactly gross minus the explicit cost model, then NAV compounds from net return.
+    // Therefore: navReturn == netRet and netRet == grossRet - totalCost, up to floating point precision.
+    var netRet = grossRet - totalCost;
+    if (!isFinite(netRet) || netRet <= -0.9999) netRet = -0.9999;
     var implicitFriction = grossRet - netRet;
-    var costFriction = friction;
-    nav*=(1+netRet);
+    var costFriction = totalCost;
+    var closureCostDiff = netRet - (grossRet - totalCost);
+    var navPrev = nav;
+    nav *= (1 + netRet);
+    var navReturnCheck = navPrev > 0 ? (nav / navPrev - 1) : netRet;
+    var closureNavDiff = navReturnCheck - netRet;
 
     var drifted={};
     for (var c in validTarget) {
@@ -1233,7 +1243,7 @@ function runBTcore(mh, mode, opts) {
     var hCopy={};
     Object.keys(target).forEach(function(k){ hCopy[k]=target[k]; });
     var recPeriod = prevM + " ~ " + sigM;
-    records.push({month:sigM,period:recPeriod,nav:nav,bNav:bNav,holdings:hCopy,effectiveHoldings:validTarget,pRet:netRet,grossRet:grossRet,implicitFriction:implicitFriction,costFriction:costFriction,nValidStocks:nValidStocks,hasLargeReturn:hasLargeReturn,missingNotes:missingNotes,hurdle:hurdle,stockRets:stockRets,scoringM:scoreM,shield:shield});
+    records.push({month:sigM,period:recPeriod,nav:nav,bNav:bNav,holdings:hCopy,effectiveHoldings:validTarget,pRet:netRet,grossRet:grossRet,implicitFriction:implicitFriction,costFriction:costFriction,turnoverCost:turnoverCost,impactCost:impactCost,totalCost:totalCost,turnover:turnover,closureCostDiff:closureCostDiff,closureNavDiff:closureNavDiff,navReturnCheck:navReturnCheck,nValidStocks:nValidStocks,hasLargeReturn:hasLargeReturn,missingNotes:missingNotes,hurdle:hurdle,stockRets:stockRets,scoringM:scoreM,shield:shield});
     holdings=drifted;
   }
   return records.length>=6 ? records : null;
