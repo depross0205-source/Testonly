@@ -107,7 +107,6 @@ tr:hover{background:var(--sf2)}
   <button class="tab" onclick="switchTab(&#39;fetch&#39;,this)">抓取</button>
   <button class="tab" onclick="switchTab(&#39;signal&#39;,this)">信號</button>
   <button class="tab" onclick="switchTab(&#39;backtest&#39;,this)">回測</button>
-  <button class="tab" onclick="switchTab(&#39;stress&#39;,this)">壓力測試</button>
 </div>
 
 <div class="panel active" id="panel-pool">
@@ -261,9 +260,16 @@ tr:hover{background:var(--sf2)}
         <input type="text" id="sigYM" placeholder="YYYY-MM，留空=最新可用月份">
       </div>
       <div class="fi">
+        <label>T-N 成交價模式</label>
+        <select id="tnExecMode">
+          <option value="T" selected>原始：T-N訊號，T日收盤買入</option>
+          <option value="NEXT">新增：T-N訊號，T-(N-1)收盤買入</option>
+        </select>
+      </div>
+      <div class="fi">
         <label>說明</label>
         <div class="ib2" style="margin-top:0;padding:6px 8px">
-          信號頁只顯示觀察用 T-N 排名；正式回測仍維持月頻 T-1 訊號、T 月底收盤進場、T+1 月底收盤計算報酬。
+          信號頁顯示固定 T-N 排名，並依 T-N 成交價模式顯示買入價與最新市價。
         </div>
       </div>
     </div>
@@ -277,36 +283,6 @@ tr:hover{background:var(--sf2)}
       <th>Score</th><th>MomZ</th><th>BiasZ</th><th>SlopeZ</th><th>VolZ</th><th>KbarZ</th>
       <th>R12</th><th>TS</th>
     </tr></thead><tbody id="stBody"></tbody></table></div>
-  </div>
-</div>
-
-<div class="panel" id="panel-stress">
-  <div class="card">
-    <div class="ct">壓力測試</div>
-    <div class="g3">
-      <div class="fi"><label>模擬次數</label><input type="number" id="stSimN" value="1000" min="100" max="5000" step="100"></div>
-      <div class="fi"><label>Block Size (月)</label><input type="number" id="stBlock" value="4" min="1" max="12"></div>
-      <div class="fi"><label>WF 最少訓練年數</label><input type="number" id="wfMinTrain" value="8" min="3" max="20"></div>
-      <div class="fi"><label>WF 測試窗口(年)</label><input type="number" id="wfTestWin" value="1" min="1" max="3"></div>
-      <div class="fi"><label>Pool Compare ETF配額</label><input type="number" id="wfETFQuota" value="1" min="0" max="5"></div>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="bo" onclick="runMonteCarlo()" style="flex:1">Monte Carlo</button>
-      <button class="bo" onclick="runBlockBootstrap()" style="flex:1">Block Bootstrap</button>
-      <button class="bo sm" onclick="document.getElementById(&#39;stressMetrics&#39;).innerHTML=&#39;&#39;" style="color:var(--re);border-color:var(--re)">清除</button>
-    </div>
-    <button class="bo" onclick="runWalkForward()" style="width:100%;margin-top:6px;color:var(--ye);border-color:var(--ye)">Walk-Forward Analysis (Anchored)</button>
-    <button class="bo" onclick="runRollingWalkForward()" style="width:100%;margin-top:6px;color:var(--tw);border-color:var(--tw)">Rolling Walk-Forward Analysis</button>
-    <button class="bo" onclick="runTNSweep()" style="width:100%;margin-top:6px;color:var(--gr);border-color:var(--gr)">T-N Sweep 回測表 (N=1~22)</button>
-    <button class="bo" onclick="runWFNCompare()" style="width:100%;margin-top:6px;color:var(--ac);border-color:var(--ac)">WF N比較 (N=2~15)</button>
-   <button class="bo" onclick="runPoolCompare()" style="width:100%;margin-top:6px;color:var(--bl);border-color:var(--bl)">Pool Compare A+B (約30~60秒)</button>
-    
-    <button class="bo" onclick="runRandomBaseline()" style="width:100%;margin-top:6px;color:var(--gr);border-color:var(--gr)">Random Baseline (N個隨機股)</button>
-    <button class="bo" onclick="runCostSensitivity()" style="width:100%;margin-top:6px;color:var(--ye);border-color:var(--ye)">Cost Sensitivity</button>
-    <div class="log" id="stressLog"></div>
-  </div>
-  <div id="stressRes" class="hidden">
-    <div id="stressMetrics"></div>
   </div>
 </div>
 
@@ -346,12 +322,18 @@ tr:hover{background:var(--sf2)}
       </div>
       <div class="fi"><label>Short N</label><input type="number" id="btSN" value="0" min="0" max="10" placeholder="0=off"></div>
       <div class="fi"><label>Capital Mode</label>
-        <div style="display:flex;gap:10px;margin-top:6px;font-size:12px">
+        <div style="display:flex;gap:10px;margin-top:6px;font-size:12px;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-            <input type="radio" name="capMode" id="capNeutral" value="neutral" checked="" style="width:14px;accent-color:var(--bl)"> 50% Long / 50% SGOV
+            <input type="radio" name="capMode" id="cap1000" value="1000" style="width:14px;accent-color:var(--bl)"> 100/0
           </label>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-            <input type="radio" name="capMode" id="cap1330" value="1330" style="width:14px;accent-color:var(--bl)"> 130/30
+            <input type="radio" name="capMode" id="cap5050" value="5050" style="width:14px;accent-color:var(--bl)"> 50/50
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="capMode" id="cap1330" value="1330" checked="" style="width:14px;accent-color:var(--bl)"> 130/30
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="capMode" id="capShortOnly" value="short_only" style="width:14px;accent-color:var(--bl)"> 100% Short
           </label>
         </div>
       </div>
@@ -381,7 +363,14 @@ tr:hover{background:var(--sf2)}
       </div>
       <div class="fi"><label>T-N 公平回測</label>
         <input type="number" id="btSignalTN" value="10" min="0" max="22" step="1">
-        <div style="font-size:9px;color:var(--mu);margin-top:3px">T-N只決定名單；仍用T月底收盤買、T+1月底收盤賣</div>
+        <div style="font-size:9px;color:var(--mu);margin-top:3px">T-N只決定名單；成交日由下方模式決定</div>
+      </div>
+      <div class="fi"><label>T-N 成交價模式</label>
+        <select id="btTNExecMode">
+          <option value="T" selected>原始：T-N訊號，T日收盤買入</option>
+          <option value="NEXT">新增：T-N訊號，T-(N-1)收盤買入</option>
+        </select>
+        <div style="font-size:9px;color:var(--mu);margin-top:3px">新模式會用同一基準計算下期出場日，避免持有期不對稱</div>
       </div>
       <div class="fi"><label>回測頻率</label>
         <div style="display:flex;gap:10px;margin-top:6px;font-size:12px;flex-wrap:wrap">
@@ -392,7 +381,7 @@ tr:hover{background:var(--sf2)}
             <input type="radio" name="btFreq" value="2" style="width:13px;accent-color:var(--tw)"> 半月頻
           </label>
         </div>
-        <div style="font-size:9px;color:var(--mu);margin-top:3px">正式回測維持月頻/半月頻；T-N 僅在信號頁獨立顯示，不影響 NAV。</div>
+        <div style="font-size:9px;color:var(--mu);margin-top:3px">正式回測維持月頻/半月頻；T-N 公平回測可選 T 或 T-(N-1) 成交基準。</div>
       </div>
       <div class="fi"><label>大盤風控 (Regime)</label>
         <select id="btRegime">
@@ -423,6 +412,10 @@ tr:hover{background:var(--sf2)}
       <button class="bo" onclick="runCompare()" style="flex:1">比較 N=1~max</button>
     </div>
     <button class="bo" onclick="runTNBacktest()" style="width:100%;margin-top:6px;color:var(--ye);border-color:var(--ye)">執行 T-N 公平回測</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+      <button class="bo" onclick="downloadAuditCSV()" style="width:100%;color:var(--gr);border-color:var(--gr)">下載對帳CSV</button>
+      <button class="bo" onclick="downloadFrictionCSV()" style="width:100%;color:var(--bl);border-color:var(--bl)">下載Friction彙整</button>
+    </div>
     <button class="bte" onclick="runRolling()" style="width:100%;margin-top:6px">滚動報酬分析</button>
     <div class="log" id="btLog"></div>
   </div>
