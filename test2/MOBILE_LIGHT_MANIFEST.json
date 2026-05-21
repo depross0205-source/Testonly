@@ -1,0 +1,35 @@
+{
+  "output": "momentum-system-mobile-light",
+  "generated_at": "2026-05-21",
+  "base_files": [
+    "index(54).html",
+    "app-core(53).js",
+    "app-backtest(56).js",
+    "pool-data(57).js"
+  ],
+  "removed": [
+    "audit-engine.js script load",
+    "Audit/監理 tab and panel",
+    "壓力測試 tab and panel",
+    "因子貢獻 tab and panel",
+    "Fetch-page Stress dashboard/robustness UI",
+    "Momentum Plateau Scan UI and related functions",
+    "Backtest Stress Score Gate UI block",
+    "Rolling button from main UI"
+  ],
+  "retained": [
+    "股池管理",
+    "資料抓取",
+    "信號頁",
+    "基本回測",
+    "T-N 公平回測",
+    "N 比較",
+    "CSV export",
+    "NAV/MDD charts",
+    "市場風控/Market Phase core where existing backtest uses it"
+  ],
+  "notes": [
+    "audit calls are replaced with no-op stubs so the core backtest can run without audit-engine.js",
+    "This build does not include audit-engine.js."
+  ]
+}
